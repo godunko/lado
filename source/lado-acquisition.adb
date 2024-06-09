@@ -11,8 +11,8 @@ with A0B.SVD.STM32H723.LPTIM;  use A0B.SVD.STM32H723.LPTIM;
 with A0B.SVD.STM32H723.PSSI;   use A0B.SVD.STM32H723.PSSI;
 with A0B.SVD.STM32H723.RCC;    use A0B.SVD.STM32H723.RCC;
 
-with A0B.Delays;
-with A0B.Time;
+--  with A0B.Delays;
+--  with A0B.Time;
 
 package body LADO.Acquisition is
 
@@ -82,44 +82,49 @@ package body LADO.Acquisition is
       RCC_Periph.AHB4ENR.GPIOFEN := True;
       RCC_Periph.AHB4ENR.GPIOGEN := True;
 
-      --  PA4  -> PSSI_DE
       GPIO_Utilities.Configure_L (GPIOA_Periph, 4, 13);
-      --  PA5  -> PSSI_D14
+      --  PA4  -> PSSI_DE
       GPIO_Utilities.Configure_L (GPIOA_Periph, 5, 13);
-      --  PA6  -> PSSI_PDCK
+      --  PA5  -> PSSI_D14
       GPIO_Utilities.Configure_L (GPIOA_Periph, 6, 13);
-      --  PB9  -> PSSI_D7
-      GPIO_Utilities.Configure_H (GPIOB_Periph, 9, 13);
-      --  PC5  -> PSSI_D15
+      --  PA6  -> PSSI_PDCK
+
+      GPIO_Utilities.Configure_L (GPIOB_Periph, 7, 13);
+      --  PB7  -> PSSI_RDY
+
       GPIO_Utilities.Configure_L (GPIOC_Periph, 5, 4);
-      --  PC6  -> PSSI_D0
+      --  PC5  -> PSSI_D15
       GPIO_Utilities.Configure_L (GPIOC_Periph, 6, 13);
-      --  PC7  -> PSSI_D1
+      --  PC6  -> PSSI_D0
       GPIO_Utilities.Configure_L (GPIOC_Periph, 7, 13);
-      --  PC10 -> PSSI_D8
+      --  PC7  -> PSSI_D1
+      GPIO_Utilities.Configure_H (GPIOC_Periph, 8, 13);
+      --  PC8  -> PSSI_D2
+      GPIO_Utilities.Configure_H (GPIOC_Periph, 9, 13);
+      --  PC9  -> PSSI_D3
       GPIO_Utilities.Configure_H (GPIOC_Periph, 10, 13);
-      --  PC12 -> PSSI_D9
+      --  PC10 -> PSSI_D8
       GPIO_Utilities.Configure_H (GPIOC_Periph, 12, 13);
-      --  PD2  -> PSSI_D11
+      --  PC12 -> PSSI_D9
+
       GPIO_Utilities.Configure_L (GPIOD_Periph, 2, 13);
-      --  PD3  -> PSSI_D5
+      --  PD2  -> PSSI_D11
       GPIO_Utilities.Configure_L (GPIOD_Periph, 3, 13);
-      --  PD6  -> PSSI_D10
+      --  PD3  -> PSSI_D5
       GPIO_Utilities.Configure_L (GPIOD_Periph, 6, 13);
-      --  PD13 -> PSSI_D13
+      --  PD6  -> PSSI_D10
       GPIO_Utilities.Configure_H (GPIOD_Periph, 13, 13);
-      --  PE4  -> PSSI_D4
+      --  PD13 -> PSSI_D13
+
       GPIO_Utilities.Configure_L (GPIOE_Periph, 4, 13);
-      --  PE5  -> PSSI_D6
+      --  PE4  -> PSSI_D4
       GPIO_Utilities.Configure_L (GPIOE_Periph, 5, 13);
-      --  PF11 -> PSSI_D12
+      --  PE5  -> PSSI_D6
+      GPIO_Utilities.Configure_L (GPIOE_Periph, 6, 13);
+      --  PE6  -> PSSI_D7
+
       GPIO_Utilities.Configure_H (GPIOF_Periph, 11, 13);
-      --  PG9  -> PSSI_RDY
-      GPIO_Utilities.Configure_H (GPIOG_Periph, 9, 13);
-      --  PG10 -> PSSI_D2
-      GPIO_Utilities.Configure_H (GPIOG_Periph, 10, 13);
-      --  PG11 -> PSSI_D3
-      GPIO_Utilities.Configure_H (GPIOG_Periph, 11, 13);
+      --  PF11 -> PSSI_D12
    end Configure_GPIO_PSSI;
 
    ----------------------
@@ -255,8 +260,10 @@ package body LADO.Acquisition is
 
    procedure Run is
    begin
-      LPTIM4_Periph.ARR.ARR := 100;  --  1 MHz
-      LPTIM4_Periph.CMP.CMP := 50;   --  50/50
+      --  LPTIM4_Periph.ARR.ARR := 100;  --  1 MHz
+      --  LPTIM4_Periph.CMP.CMP := 50;   --  50/50
+      LPTIM4_Periph.ARR.ARR := 20;  --  5 MHz
+      LPTIM4_Periph.CMP.CMP := 10;   --  50/50
 
       DMA1_Periph.S0CR.EN := False;
 
