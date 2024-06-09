@@ -257,8 +257,8 @@ package body LADO.Acquisition is
 
    procedure DMA1_Stream0_Handler is
       Status : constant LISR_Register := DMA1_Periph.LISR;
-      Mask   : constant S0CR_Register := DMA1_Periph.S0CR;
-      Aux    : A0B.Types.Unsigned_32;
+      --  Mask   : constant S0CR_Register := DMA1_Periph.S0CR;
+      Aux    : A0B.Types.Unsigned_32 with Unreferenced;
 
    begin
       if Status.TCIF0 then
@@ -270,20 +270,19 @@ package body LADO.Acquisition is
            (CTCIF0  => True,
             others  => <>);
 
-         Aux := PSSI_Periph.PSSI_DR.Val;
-         LPTIM4_Periph.CR.ENABLE    := False;
-         --  PSSI_Periph.PSSI_CR.ENABLE := B_0x0;
-         DMA1_Periph.S0CR.EN        := False;
+         --  Disable LPTIM to stop signal generation, disable DMA stream.
 
-         while DMA1_Periph.S0CR.EN loop
-            null;
+         LPTIM4_Periph.CR.ENABLE := False;
+         DMA1_Periph.S0CR.EN     := False;
+
+         --  Receive all bytes from the FIFO
+
+         while PSSI_Periph.PSSI_SR.RTT1B = B_0x1 loop
+            Aux := PSSI_Periph.PSSI_DR.Val;
          end loop;
-
-         PSSI_Periph.PSSI_CR.DMAEN := B_0x0;
 
          Done := True;
       end if;
-      --  raise Program_Error;
    end DMA1_Stream0_Handler;
 
    ----------------
@@ -380,41 +379,12 @@ package body LADO.Acquisition is
          MBURST         => 0,  --  single transfer
          others         => <>);
 
-      --  ??? Attempt to fix an issue with NDTR
-
-      --  DMA1_Periph.S0NDTR := (NDT => 4_096, others => <>);
-
-      declare
-         --  Val : LIFCR_Register := DMA1_Periph.LIFCR;
-
-      begin
-         --  Val.CFEIF0  := True;
-         --  Val.CDMEIF0 := True;
-         --  Val.CTEIF0  := True;
-         --  Val.CHTIF0  := True;
-         --  Val.CTCIF0  := True;
-         --
-         --  DMA1_Periph.LIFCR := Val;
-         DMA1_Periph.LIFCR :=
-           (CFEIF0  => True,
-            CDMEIF0 => True,
-            CTEIF0  => True,
-            CHTIF0  => True,
-            CTCIF0  => True,
-            others  => <>);
-         DMAMUX1_Periph.DMAMUX_CFR :=
-           (CSOF   => (As_Array => True, Arr => [0 => True, others => <>]),
-            others => <>);
-      end;
-
       DMA1_Periph.S0FCR.DMDIS := False;
 
       --  "10. Activate the stream by setting the EN bit in the DMA_SxCR
       --  register."
 
       --  DMA1_Periph.S0CR.EN := True;
-
-
 
       A0B.ARMv7M.NVIC_Utilities.Clear_Pending (A0B.STM32H723.DMA1_STR0);
       A0B.ARMv7M.NVIC_Utilities.Enable_Interrupt (A0B.STM32H723.DMA1_STR0);
@@ -432,37 +402,51 @@ package body LADO.Acquisition is
          raise Program_Error;
       end if;
 
-      Set_Waveform (100, 50);
-      --  LPTIM4_Periph.ARR.ARR := 10_000;  --  10 kHz
-      --  LPTIM4_Periph.CMP.CMP := 5_000;   --  50/50
-      --  LPTIM4_Periph.ARR.ARR := 100;  --  1 MHz
-      --  LPTIM4_Periph.CMP.CMP := 50;   --  50/50
-      --  LPTIM4_Periph.ARR.ARR := 20;  --  5 MHz
-      --  LPTIM4_Periph.CMP.CMP := 10;   --  50/50
+      if DMA1_Periph.S0CR.EN then
+         raise Program_Error;
+      end if;
 
-      --  Reconfigure DMA
+      Set_Waveform (20, 10);
+      --  10_000/5_000   10 kHz, 50/50
+      --  100/50         1 MHz, 50/50
+      --  20/10          5 MHz, 50/50
+
+      --  Clean PSSI's FIFO in case when any information comes after timer's
+      --  stop was requested.
+
+      declare
+         Aux : A0B.Types.Unsigned_32 with Unreferenced;
+
+      begin
+         while PSSI_Periph.PSSI_SR.RTT1B = B_0x1 loop
+            Aux := PSSI_Periph.PSSI_DR.Val;
+         end loop;
+      end;
+
+      --  Clear PSSI interrupt state
+
+      PSSI_Periph.PSSI_ICR := (OVR_ISC => True, others => <>);
+
+      --  Reset DMA stream DMAMUX channel states.
+
+      DMA1_Periph.LIFCR :=
+        (CFEIF0  => True,
+         CDMEIF0 => True,
+         CTEIF0  => True,
+         CHTIF0  => True,
+         CTCIF0  => True,
+         others  => <>);
+      DMAMUX1_Periph.DMAMUX_CFR :=
+        (CSOF   => (As_Array => True, Arr => [0 => True, others => <>]),
+         others => <>);
+
+      --  Reconfigure DMA stream to receive data and enable it.
 
       DMA1_Periph.S0NDTR.NDT := 4_096;
-
       DMA1_Periph.S0CR.EN := True;
-
-      PSSI_Periph.PSSI_CR.DMAEN := B_0x1;
-
-      --  Enable PSSI
-
-      --  if PSSI_Periph.PSSI_CR.ENABLE /= B_0x0 then
-      --     raise Program_Error;
-      --  end if;
-      --
-      --  PSSI_Periph.PSSI_CR.ENABLE := B_0x1;
-      PSSI_Periph.PSSI_ICR :=
-        (OVR_ISC => True, others => <>);
 
       --  Enable and start timer
 
-      --  A0B.Delays.Delay_For (A0B.Time.Milliseconds (1));
-      --  LPTIM4_Periph.CR.ENABLE   := True;
-      --  A0B.Delays.Delay_For (A0B.Time.Milliseconds (1));
       LPTIM4_Periph.CR.COUNTRST := True;
       LPTIM4_Periph.CR.CNTSTRT  := True;
    end Run;
