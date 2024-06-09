@@ -33,6 +33,10 @@ package body LADO.Acquisition is
 
    procedure Configure_GPIO_LPTIM4;
 
+   procedure Set_Waveform
+     (ARR : A0B.Types.Unsigned_16;
+      CMP : A0B.Types.Unsigned_16);
+
    procedure DMA1_Stream0_Handler
      with Export, Convention => C, External_Name => "DMA1_Stream0_Handler";
 
@@ -428,31 +432,13 @@ package body LADO.Acquisition is
          raise Program_Error;
       end if;
 
-      LPTIM4_Periph.CR.ENABLE := True;  --  ???
-
+      Set_Waveform (100, 50);
       --  LPTIM4_Periph.ARR.ARR := 10_000;  --  10 kHz
       --  LPTIM4_Periph.CMP.CMP := 5_000;   --  50/50
       --  LPTIM4_Periph.ARR.ARR := 100;  --  1 MHz
       --  LPTIM4_Periph.CMP.CMP := 50;   --  50/50
       --  LPTIM4_Periph.ARR.ARR := 20;  --  5 MHz
       --  LPTIM4_Periph.CMP.CMP := 10;   --  50/50
-
-      LPTIM4_Periph.ICR := (ARROKCF | CMPOKCF => True, others => <>);
-
-      LPTIM4_Periph.ARR.ARR := 65_535;   --  ??? for debug !!!
-
-      while not LPTIM4_Periph.ISR.ARROK loop
-         null;
-      end loop;
-
-      LPTIM4_Periph.CMP.CMP := 32_767;   --  50/50
-
-      while not LPTIM4_Periph.ISR.CMPOK loop
-         null;
-      end loop;
-
-      LPTIM4_Periph.ICR := (ARROKCF | CMPOKCF => True, others => <>);
-      LPTIM4_Periph.ICR := (ARRMCF | CMPMCF => True, others => <>);
 
       --  Reconfigure DMA
 
@@ -480,5 +466,36 @@ package body LADO.Acquisition is
       LPTIM4_Periph.CR.COUNTRST := True;
       LPTIM4_Periph.CR.CNTSTRT  := True;
    end Run;
+
+   ------------------
+   -- Set_Waveform --
+   ------------------
+
+   procedure Set_Waveform
+     (ARR : A0B.Types.Unsigned_16;
+      CMP : A0B.Types.Unsigned_16) is
+   begin
+      pragma Assert (not LPTIM4_Periph.CR.ENABLE);
+
+      LPTIM4_Periph.CR.ENABLE := True;
+      --  Enable LPTIM to ba able to set ARR and CMP registers
+
+      LPTIM4_Periph.ICR := (ARROKCF | CMPOKCF => True, others => <>);
+
+      LPTIM4_Periph.ARR.ARR := ARR;
+
+      while not LPTIM4_Periph.ISR.ARROK loop
+         null;
+      end loop;
+
+      LPTIM4_Periph.CMP.CMP := CMP;
+
+      while not LPTIM4_Periph.ISR.CMPOK loop
+         null;
+      end loop;
+
+      LPTIM4_Periph.ICR := (ARROKCF | CMPOKCF => True, others => <>);
+      LPTIM4_Periph.ICR := (ARRMCF | CMPMCF => True, others => <>);
+   end Set_Waveform;
 
 end LADO.Acquisition;
