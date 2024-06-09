@@ -4,10 +4,12 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
---  Logic Analyzer/Digital Oscilloscope
-
-package LADO
-  with Pure
+package LADO.UI
+  with Preelaborate
 is
 
-end LADO;
+   procedure Initialize;
+
+   procedure Run;
+
+end LADO.UI;
