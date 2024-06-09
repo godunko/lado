@@ -4,12 +4,15 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
-with A0B.SVD.STM32H723.DMA;    use A0B.SVD.STM32H723.DMA;
-with A0B.SVD.STM32H723.DMAMUX; use A0B.SVD.STM32H723.DMAMUX;
-with A0B.SVD.STM32H723.GPIO;   use A0B.SVD.STM32H723.GPIO;
-with A0B.SVD.STM32H723.LPTIM;  use A0B.SVD.STM32H723.LPTIM;
-with A0B.SVD.STM32H723.PSSI;   use A0B.SVD.STM32H723.PSSI;
-with A0B.SVD.STM32H723.RCC;    use A0B.SVD.STM32H723.RCC;
+pragma Ada_2022;
+
+with A0B.ARMv7M.NVIC_Utilities; use A0B.ARMv7M.NVIC_Utilities;
+with A0B.STM32H723.SVD.DMA;     use A0B.STM32H723.SVD.DMA;
+with A0B.STM32H723.SVD.DMAMUX;  use A0B.STM32H723.SVD.DMAMUX;
+with A0B.STM32H723.SVD.GPIO;    use A0B.STM32H723.SVD.GPIO;
+with A0B.STM32H723.SVD.LPTIM;   use A0B.STM32H723.SVD.LPTIM;
+with A0B.STM32H723.SVD.PSSI;    use A0B.STM32H723.SVD.PSSI;
+with A0B.STM32H723.SVD.RCC;     use A0B.STM32H723.SVD.RCC;
 
 --  with A0B.Delays;
 --  with A0B.Time;
@@ -29,6 +32,9 @@ package body LADO.Acquisition is
    procedure Configure_GPIO_PSSI;
 
    procedure Configure_GPIO_LPTIM4;
+
+   procedure DMA1_Stream0_Handler
+     with Export, Convention => C, External_Name => "DMA1_Stream0_Handler";
 
    package GPIO_Utilities is
 
@@ -150,6 +156,7 @@ package body LADO.Acquisition is
          CKFLT     => <>,      --  if external clock
          TRGFLT    => <>,      --  if hardware trigger
          PRESC     => 2#000#,  --  /1
+         --  PRESC     => 2#111#,  --  /128  ??? for debug !!!
          TRIGSEL   => <>,      --  if external trigger
          TRIGEN    => 2#00#,
          --  Software trigger (counting start is initiated by software)
@@ -167,9 +174,8 @@ package body LADO.Acquisition is
          ENC       => False,   --  Encoder mode disabled
          others    => <>);
 
-      LPTIM4_Periph.CR.ENABLE := True;
-      --  Enable timer to be able to continue configuration.
-
+      --  LPTIM4_Periph.CR.ENABLE := True;
+      --  --  Enable timer to be able to continue configuration.
    end Configure_LPTIM4;
 
    --------------------
@@ -193,7 +199,7 @@ package body LADO.Acquisition is
          --  receive)
          EDM      => B_0x3,
          --  The interface captures 16-bit data on every parallel data clock
-         ENABLE   => B_0x0,  --  PSSI disabled
+         ENABLE   => B_0x1,  --  PSSI disabled
          DERDYCFG => B_0x0,  --  PSSI_DE and PSSI_RDY both disabled
          DMAEN    => B_0x1,  --  DMA transfers are enabled.
          OUTEN    => B_0x0,
@@ -241,6 +247,41 @@ package body LADO.Acquisition is
 
    end GPIO_Utilities;
 
+   --------------------------
+   -- DMA1_Stream0_Handler --
+   --------------------------
+
+   procedure DMA1_Stream0_Handler is
+      Status : constant LISR_Register := DMA1_Periph.LISR;
+      Mask   : constant S0CR_Register := DMA1_Periph.S0CR;
+      Aux    : A0B.Types.Unsigned_32;
+
+   begin
+      if Status.TCIF0 then
+         DMA1_Periph.LIFCR :=
+           --  (CFEIF0  => True,
+           --   CDMEIF0 => True,
+           --   CTEIF0  => True,
+           --   CHTIF0  => True,
+           (CTCIF0  => True,
+            others  => <>);
+
+         Aux := PSSI_Periph.PSSI_DR.Val;
+         LPTIM4_Periph.CR.ENABLE    := False;
+         --  PSSI_Periph.PSSI_CR.ENABLE := B_0x0;
+         DMA1_Periph.S0CR.EN        := False;
+
+         while DMA1_Periph.S0CR.EN loop
+            null;
+         end loop;
+
+         PSSI_Periph.PSSI_CR.DMAEN := B_0x0;
+
+         Done := True;
+      end if;
+      --  raise Program_Error;
+   end DMA1_Stream0_Handler;
+
    ----------------
    -- Initialize --
    ----------------
@@ -252,27 +293,70 @@ package body LADO.Acquisition is
       Configure_DMA;
       Configure_PSSI;
       Configure_LPTIM4;
-   end Initialize;
 
-   ---------
-   -- Run --
-   ---------
+      --
 
-   procedure Run is
-   begin
-      --  LPTIM4_Periph.ARR.ARR := 100;  --  1 MHz
-      --  LPTIM4_Periph.CMP.CMP := 50;   --  50/50
-      LPTIM4_Periph.ARR.ARR := 20;  --  5 MHz
-      LPTIM4_Periph.CMP.CMP := 10;   --  50/50
+      DMA1_Periph.S0CR.EN := False;  --  ???
 
-      DMA1_Periph.S0CR.EN := False;
+      while DMA1_Periph.S0CR.EN loop
+         raise Program_Error;
+         --  null;
+      end loop;
+
+      --  "2.Set the peripheral port register address in the DMA_SxPAR
+      --  register. The data is moved from/ to this address to/ from the
+      --  peripheral port after the peripheral event.
+      --
+      --  3.Set the memory address in the DMA_SxMA0R register (and in the
+      --  DMA_SxMA1R register in the case of a double-buffer mode). The data
+      --  is written to or read from this memory after the peripheral event.
+      --
+      --  4.Configure the total number of data items to be transferred in the
+      --  DMA_SxNDTR register. After each peripheral event or each beat of the
+      --  burst, this value is decremented."
+
+      DMA1_Periph.S0PAR  := 16#4802_0428#;
+      DMA1_Periph.S0M0AR := 16#3000_0000#;
+      --  DMA1_Periph.S0M1AR := 16#3000_4000#;
+      DMA1_Periph.S0NDTR.NDT := 4_096;
+
+      --  "5.Use DMAMUX1 to route a DMA request line to the DMA channel."
+
+      DMAMUX1_Periph.DMAMUX_C0CR :=
+        (DMAREQ_ID => 75,     --  dcmi_dma
+         SOIE      => B_0x0,  --  Interrupt disabled
+         EGE       => B_0x0,  --  Event generation disabled
+         SE        => B_0x0,  --  Synchronization disabled
+         SPOL      => B_0x0,
+         --  No event, i.e. no synchronization nor detection.
+         NBREQ     => 0,
+         SYNC_ID   => 0,
+         others    => <>);
+      DMAMUX1_Periph.DMAMUX_RG0CR :=
+        (others => <>);
+
+      --  "6.If the peripheral is intended to be the flow controller and if it
+      --  supports this feature, set the PFCTRL bit in the DMA_SxCR register.
+      --
+      --  7.Configure the stream priority using the PL[1:0] bits in the
+      --  DMA_SxCR register.
+      --
+      --  8.Configure the FIFO usage (enable or disable, threshold in
+      --  transmission and reception).
+      --
+      --  9. Configure the data transfer direction, peripheral and memory
+      --  incremented/fixed mode, single or burst transactions, peripheral and
+      --  memory data widths, circular mode, double-buffer mode and interrupts
+      --  after half and/or full transfer, and/or errors in the DMA_SxCR
+      --  register."
 
       DMA1_Periph.S0CR :=
-        (DMEIE          => False,  --  DME interrupt disabled
-         TEIE           => False,  --  TE interrupt disabled
+        (EN             => False,  --  stream disabled
+         DMEIE          => False,  --  DME interrupt disabled
+         TEIE           => True,   --  TE interrupt enabled
          HTIE           => False,  --  HT interrupt disabled
-         TCIE           => False,  --  TC interrupt disabled
-         PFCTRL         => True,   --  The peripheral is the flow controller.
+         TCIE           => True,   --  TC interrupt enabled
+         PFCTRL         => False,  --  DMA is the flow controller.
          DIR            => 2#00#,  --  peripheral-to-memory
          CIRC           => False,  --  circular mode disabled
          PINC           => False,  --  peripheral address pointer fixed
@@ -292,30 +376,113 @@ package body LADO.Acquisition is
          PBURST         => 0,  --  single transfer
          MBURST         => 0,  --  single transfer
          others         => <>);
-      DMA1_Periph.S0NDTR := (NDT => 4_096, others => <>);
+
+      --  ??? Attempt to fix an issue with NDTR
+
+      --  DMA1_Periph.S0NDTR := (NDT => 4_096, others => <>);
+
+      declare
+         --  Val : LIFCR_Register := DMA1_Periph.LIFCR;
+
+      begin
+         --  Val.CFEIF0  := True;
+         --  Val.CDMEIF0 := True;
+         --  Val.CTEIF0  := True;
+         --  Val.CHTIF0  := True;
+         --  Val.CTCIF0  := True;
+         --
+         --  DMA1_Periph.LIFCR := Val;
+         DMA1_Periph.LIFCR :=
+           (CFEIF0  => True,
+            CDMEIF0 => True,
+            CTEIF0  => True,
+            CHTIF0  => True,
+            CTCIF0  => True,
+            others  => <>);
+         DMAMUX1_Periph.DMAMUX_CFR :=
+           (CSOF   => (As_Array => True, Arr => [0 => True, others => <>]),
+            others => <>);
+      end;
+
+      DMA1_Periph.S0FCR.DMDIS := False;
+
+      --  "10. Activate the stream by setting the EN bit in the DMA_SxCR
+      --  register."
+
+      --  DMA1_Periph.S0CR.EN := True;
+
+
+
+      A0B.ARMv7M.NVIC_Utilities.Clear_Pending (A0B.STM32H723.DMA1_STR0);
+      A0B.ARMv7M.NVIC_Utilities.Enable_Interrupt (A0B.STM32H723.DMA1_STR0);
+   end Initialize;
+
+   ---------
+   -- Run --
+   ---------
+
+   procedure Run is
+   begin
+      Done := False;
+
+      if LPTIM4_Periph.CR.ENABLE then
+         raise Program_Error;
+      end if;
+
+      LPTIM4_Periph.CR.ENABLE := True;  --  ???
+
+      --  LPTIM4_Periph.ARR.ARR := 10_000;  --  10 kHz
+      --  LPTIM4_Periph.CMP.CMP := 5_000;   --  50/50
+      --  LPTIM4_Periph.ARR.ARR := 100;  --  1 MHz
+      --  LPTIM4_Periph.CMP.CMP := 50;   --  50/50
+      --  LPTIM4_Periph.ARR.ARR := 20;  --  5 MHz
+      --  LPTIM4_Periph.CMP.CMP := 10;   --  50/50
+
+      LPTIM4_Periph.ICR := (ARROKCF | CMPOKCF => True, others => <>);
+
+      LPTIM4_Periph.ARR.ARR := 65_535;   --  ??? for debug !!!
+
+      while not LPTIM4_Periph.ISR.ARROK loop
+         null;
+      end loop;
+
+      LPTIM4_Periph.CMP.CMP := 32_767;   --  50/50
+
+      while not LPTIM4_Periph.ISR.CMPOK loop
+         null;
+      end loop;
+
+      LPTIM4_Periph.ICR := (ARROKCF | CMPOKCF => True, others => <>);
+      LPTIM4_Periph.ICR := (ARRMCF | CMPMCF => True, others => <>);
+
+      --  Reconfigure DMA
+
       DMA1_Periph.S0PAR  := 16#4802_0428#;
       DMA1_Periph.S0M0AR := 16#3000_0000#;
-      DMA1_Periph.S0M1AR := 16#3000_4000#;
-
-      DMAMUX1_Periph.DMAMUX_C0CR :=
-        (DMAREQ_ID => 75,     --  dcmi_dma
-         SOIE      => B_0x0,  --  Interrupt disabled
-         EGE       => B_0x0,  --  Event generation disabled
-         SE        => B_0x0,  --  Synchronization disabled
-         SPOL      => B_0x0,
-         --  No event, i.e. no synchronization nor detection.
-         NBREQ     => 0,
-         SYNC_ID   => 0,
-         others    => <>);
+      --  DMA1_Periph.S0M1AR := 16#3000_4000#;
+      DMA1_Periph.S0NDTR.NDT := 4_096;
 
       DMA1_Periph.S0CR.EN := True;
 
-      PSSI_Periph.PSSI_CR.ENABLE := B_0x1;
+      PSSI_Periph.PSSI_CR.DMAEN := B_0x1;
+
+      --  Enable PSSI
+
+      --  if PSSI_Periph.PSSI_CR.ENABLE /= B_0x0 then
+      --     raise Program_Error;
+      --  end if;
+      --
+      --  PSSI_Periph.PSSI_CR.ENABLE := B_0x1;
+      PSSI_Periph.PSSI_ICR :=
+        (OVR_ISC => True, others => <>);
+
+      --  Enable and start timer
 
       --  A0B.Delays.Delay_For (A0B.Time.Milliseconds (1));
-      LPTIM4_Periph.CR.ENABLE := True;
+      --  LPTIM4_Periph.CR.ENABLE   := True;
       --  A0B.Delays.Delay_For (A0B.Time.Milliseconds (1));
-      LPTIM4_Periph.CR.CNTSTRT := True;
+      LPTIM4_Periph.CR.COUNTRST := True;
+      LPTIM4_Periph.CR.CNTSTRT  := True;
    end Run;
 
 end LADO.Acquisition;

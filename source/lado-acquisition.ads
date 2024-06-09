@@ -24,4 +24,6 @@ is
      with Address => System.Storage_Elements.To_Address (16#3000_0000#),
           Volatile;
 
+   Done : Boolean with Volatile;
+
 end LADO.Acquisition;
