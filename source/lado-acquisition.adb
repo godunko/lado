@@ -203,7 +203,7 @@ package body LADO.Acquisition is
          --  receive)
          EDM      => B_0x3,
          --  The interface captures 16-bit data on every parallel data clock
-         ENABLE   => B_0x1,  --  PSSI disabled
+         ENABLE   => B_0x0,  --  PSSI disabled
          DERDYCFG => B_0x0,  --  PSSI_DE and PSSI_RDY both disabled
          DMAEN    => B_0x1,  --  DMA transfers are enabled.
          OUTEN    => B_0x0,
@@ -270,16 +270,12 @@ package body LADO.Acquisition is
            (CTCIF0  => True,
             others  => <>);
 
-         --  Disable LPTIM to stop signal generation, disable DMA stream.
+         --  Disable LPTIM to stop clock signal generation, disable DMA stream
+         --  to be able to disable PSSI, disable PSSI to flush FIFO.
 
-         LPTIM4_Periph.CR.ENABLE := False;
-         DMA1_Periph.S0CR.EN     := False;
-
-         --  Receive all bytes from the FIFO
-
-         while PSSI_Periph.PSSI_SR.RTT1B = B_0x1 loop
-            Aux := PSSI_Periph.PSSI_DR.Val;
-         end loop;
+         LPTIM4_Periph.CR.ENABLE    := False;
+         DMA1_Periph.S0CR.EN        := False;
+         PSSI_Periph.PSSI_CR.ENABLE := B_0x0;
 
          Done := True;
       end if;
@@ -411,18 +407,6 @@ package body LADO.Acquisition is
       --  100/50         1 MHz, 50/50
       --  20/10          5 MHz, 50/50
 
-      --  Clean PSSI's FIFO in case when any information comes after timer's
-      --  stop was requested.
-
-      declare
-         Aux : A0B.Types.Unsigned_32 with Unreferenced;
-
-      begin
-         while PSSI_Periph.PSSI_SR.RTT1B = B_0x1 loop
-            Aux := PSSI_Periph.PSSI_DR.Val;
-         end loop;
-      end;
-
       --  Clear PSSI interrupt state
 
       PSSI_Periph.PSSI_ICR := (OVR_ISC => True, others => <>);
@@ -444,6 +428,10 @@ package body LADO.Acquisition is
 
       DMA1_Periph.S0NDTR.NDT := 4_096;
       DMA1_Periph.S0CR.EN := True;
+
+      --  Enable PSSI
+
+      PSSI_Periph.PSSI_CR.ENABLE := B_0x1;
 
       --  Enable and start timer
 
