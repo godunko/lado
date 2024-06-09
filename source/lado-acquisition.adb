@@ -318,7 +318,6 @@ package body LADO.Acquisition is
       DMA1_Periph.S0PAR  := 16#4802_0428#;
       DMA1_Periph.S0M0AR := 16#3000_0000#;
       --  DMA1_Periph.S0M1AR := 16#3000_4000#;
-      DMA1_Periph.S0NDTR.NDT := 4_096;
 
       --  "5.Use DMAMUX1 to route a DMA request line to the DMA channel."
 
@@ -457,9 +456,6 @@ package body LADO.Acquisition is
 
       --  Reconfigure DMA
 
-      DMA1_Periph.S0PAR  := 16#4802_0428#;
-      DMA1_Periph.S0M0AR := 16#3000_0000#;
-      --  DMA1_Periph.S0M1AR := 16#3000_4000#;
       DMA1_Periph.S0NDTR.NDT := 4_096;
 
       DMA1_Periph.S0CR.EN := True;
