@@ -21,6 +21,7 @@ is
        with Pack;
 
    Buffer : Unsigned_16_Array (0 .. 8191)
-     with Address => System.Storage_Elements.To_Address (16#3000_0000#);
+     with Address => System.Storage_Elements.To_Address (16#3000_0000#),
+          Volatile;
 
 end LADO.Acquisition;
