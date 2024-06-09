@@ -54,16 +54,16 @@ package body LADO.UI is
          end loop;
          --  A0B.Delays.Delay_For (A0B.Time.Milliseconds (1000));
 
+         A0B.ARMv7M.Cache_Utilities.Invalidate_DCache
+           (LADO.Acquisition.Buffer'Address,
+            LADO.Acquisition.Buffer'Length * 2);
+
          declare
             use type A0B.Types.Unsigned_16;
 
             Previous : A0B.Types.Unsigned_16 := LADO.Acquisition.Buffer (0);
 
          begin
-            A0B.ARMv7M.Cache_Utilities.Invalidate_DCache
-              (LADO.Acquisition.Buffer'Address,
-               LADO.Acquisition.Buffer'Length * 2);
-
             for Current of LADO.Acquisition.Buffer loop
                --  exit Acquisition when Previous /= Current;
                Previous := Current;
