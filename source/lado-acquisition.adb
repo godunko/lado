@@ -133,7 +133,12 @@ package body LADO.Acquisition is
          MBURST         => 0,  --  single transfer
          others         => <>);
 
-      DMA1_Periph.S0FCR.DMDIS := False;
+      DMA1_Periph.S0FCR :=
+        (FTH    => 2#10#,  --  3/4 full FIFO
+         DMDIS  => False,  --  direct mode disabled
+         FS     => <>,     --  These bits are read-only.
+         FEIE   => True,   --  FE interrupt enabled
+         others => <>);
 
       --  "10. Activate the stream by setting the EN bit in the DMA_SxCR
       --  register."
@@ -322,13 +327,10 @@ package body LADO.Acquisition is
 
    begin
       if Status.TCIF0 then
-         DMA1_Periph.LIFCR :=
-           --  (CFEIF0  => True,
-           --   CDMEIF0 => True,
-           --   CTEIF0  => True,
+         --  Stream 0 transfer complete interrupt flag
+
+         DMA1_Periph.LIFCR := (CTCIF0 => True, others => <>);
            --   CHTIF0  => True,
-           (CTCIF0  => True,
-            others  => <>);
 
          --  Disable LPTIM to stop clock signal generation, disable DMA stream
          --  to be able to disable PSSI, disable PSSI to flush FIFO.
@@ -338,6 +340,22 @@ package body LADO.Acquisition is
          PSSI_Periph.PSSI_CR.ENABLE := B_0x0;
 
          Done := True;
+      end if;
+
+      if Status.TEIF0 then
+         --  Stream 0 transfer error interrupt flag
+
+         DMA1_Periph.LIFCR := (CTEIF0 => True, others => <>);
+
+         raise Program_Error;
+      end if;
+
+      if Status.FEIF0 then
+         --  Stream 0 FIFO error interrupt flag
+
+         DMA1_Periph.LIFCR := (CFEIF0 => True, others => <>);
+
+         raise Program_Error;
       end if;
    end DMA1_Stream0_Handler;
 
