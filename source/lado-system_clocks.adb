@@ -95,6 +95,20 @@ package body LADO.System_Clocks is
    procedure Initialize is
    begin
       Configure_PLL2;
+
+      --  Select source of clocks of peripheral controllers
+
+      RCC_Periph.D1CCIPR.FMCSEL := 2#10#;  --  FMC: PLL2R
+
+      --  Enable clocks of used pirepheral controllers
+
+      RCC_Periph.AHB3ENR.FMCEN := True;
+
+      RCC_Periph.AHB4ENR.GPIOAEN := True;
+      RCC_Periph.AHB4ENR.GPIOCEN := True;
+      RCC_Periph.AHB4ENR.GPIODEN := True;
+      RCC_Periph.AHB4ENR.GPIOEEN := True;
+      RCC_Periph.AHB4ENR.GPIOFEN := True;
    end Initialize;
 
 end LADO.System_Clocks;

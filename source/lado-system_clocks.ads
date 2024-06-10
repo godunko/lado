@@ -4,23 +4,13 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
---  with System.Storage_Elements;
---
---  with A0B.Types;
+--  Configure all components of system clock, including PLL, clock sources for
+--  each peripheral, etc.
 
 package LADO.System_Clocks
   with Preelaborate
 is
 
    procedure Initialize;
-
-   --  procedure Run;
-   --
-   --  type Unsigned_16_Array is
-   --    array (A0B.Types.Unsigned_32 range <>) of A0B.Types.Unsigned_16
-   --      with Pack;
-   --
-   --  Buffer : Unsigned_16_Array (0 .. 8191)
-   --    with Address => System.Storage_Elements.To_Address (16#3000_0000#);
 
 end LADO.System_Clocks;
