@@ -98,17 +98,25 @@ package body LADO.System_Clocks is
 
       --  Select source of clocks of peripheral controllers
 
-      RCC_Periph.D1CCIPR.FMCSEL := 2#10#;  --  FMC: PLL2R
+      RCC_Periph.D1CCIPR.FMCSEL := 2#10#;       --  FMC:        PLL2R
+      RCC_Periph.D3CCIPR.LPTIM345SEL := 2#001#;  -- LPTIM3/4/5: PLL2P
 
       --  Enable clocks of used pirepheral controllers
+
+      RCC_Periph.AHB1ENR.DMA1EN := True;
+
+      RCC_Periph.AHB2ENR.DCMI_PSSIEN := True;
 
       RCC_Periph.AHB3ENR.FMCEN := True;
 
       RCC_Periph.AHB4ENR.GPIOAEN := True;
+      RCC_Periph.AHB4ENR.GPIOBEN := True;
       RCC_Periph.AHB4ENR.GPIOCEN := True;
       RCC_Periph.AHB4ENR.GPIODEN := True;
       RCC_Periph.AHB4ENR.GPIOEEN := True;
       RCC_Periph.AHB4ENR.GPIOFEN := True;
+      RCC_Periph.AHB4ENR.GPIOGEN := True;
+      RCC_Periph.APB4ENR.LPTIM4EN := True;
    end Initialize;
 
 end LADO.System_Clocks;

@@ -12,10 +12,6 @@ with A0B.STM32H723.SVD.DMAMUX;  use A0B.STM32H723.SVD.DMAMUX;
 with A0B.STM32H723.SVD.GPIO;    use A0B.STM32H723.SVD.GPIO;
 with A0B.STM32H723.SVD.LPTIM;   use A0B.STM32H723.SVD.LPTIM;
 with A0B.STM32H723.SVD.PSSI;    use A0B.STM32H723.SVD.PSSI;
-with A0B.STM32H723.SVD.RCC;     use A0B.STM32H723.SVD.RCC;
-
---  with A0B.Delays;
---  with A0B.Time;
 
 package body LADO.Acquisition is
 
@@ -63,7 +59,86 @@ package body LADO.Acquisition is
 
    procedure Configure_DMA is
    begin
-      RCC_Periph.AHB1ENR.DMA1EN := True;
+      --  "2.Set the peripheral port register address in the DMA_SxPAR
+      --  register. The data is moved from/ to this address to/ from the
+      --  peripheral port after the peripheral event.
+      --
+      --  3.Set the memory address in the DMA_SxMA0R register (and in the
+      --  DMA_SxMA1R register in the case of a double-buffer mode). The data
+      --  is written to or read from this memory after the peripheral event.
+      --
+      --  4.Configure the total number of data items to be transferred in the
+      --  DMA_SxNDTR register. After each peripheral event or each beat of the
+      --  burst, this value is decremented."
+
+      DMA1_Periph.S0PAR  := 16#4802_0428#;
+      DMA1_Periph.S0M0AR := 16#3000_0000#;
+      --  DMA1_Periph.S0M1AR := 16#3000_4000#;
+      --  DMA1_Periph.S0NDTR.NDT is configured later, before the transfer.
+
+      --  "5.Use DMAMUX1 to route a DMA request line to the DMA channel."
+
+      DMAMUX1_Periph.DMAMUX_C0CR :=
+        (DMAREQ_ID => 75,     --  dcmi_dma
+         SOIE      => B_0x0,  --  Interrupt disabled
+         EGE       => B_0x0,  --  Event generation disabled
+         SE        => B_0x0,  --  Synchronization disabled
+         SPOL      => B_0x0,
+         --  No event, i.e. no synchronization nor detection.
+         NBREQ     => 0,
+         SYNC_ID   => 0,
+         others    => <>);
+      DMAMUX1_Periph.DMAMUX_RG0CR :=
+        (others => <>);
+
+      --  "6.If the peripheral is intended to be the flow controller and if it
+      --  supports this feature, set the PFCTRL bit in the DMA_SxCR register.
+      --
+      --  7.Configure the stream priority using the PL[1:0] bits in the
+      --  DMA_SxCR register.
+      --
+      --  8.Configure the FIFO usage (enable or disable, threshold in
+      --  transmission and reception).
+      --
+      --  9. Configure the data transfer direction, peripheral and memory
+      --  incremented/fixed mode, single or burst transactions, peripheral and
+      --  memory data widths, circular mode, double-buffer mode and interrupts
+      --  after half and/or full transfer, and/or errors in the DMA_SxCR
+      --  register."
+
+      DMA1_Periph.S0CR :=
+        (EN             => False,  --  stream disabled
+         DMEIE          => False,  --  DME interrupt disabled
+         TEIE           => True,   --  TE interrupt enabled
+         HTIE           => False,  --  HT interrupt disabled
+         TCIE           => True,   --  TC interrupt enabled
+         PFCTRL         => False,  --  DMA is the flow controller.
+         DIR            => 2#00#,  --  peripheral-to-memory
+         CIRC           => False,  --  circular mode disabled
+         PINC           => False,  --  peripheral address pointer fixed
+         MINC           => True,
+         --  memory address pointer is incremented after each data transfer
+         --  (increment is done according to MSIZE)
+         PSIZE          => 2#10#,  --  word (32-bit)
+         MSIZE          => 2#10#,  --  word (32-bit)
+         PINCOS         => <>,     --  if PINC
+         PL             => 2#10#,  --  high
+         DBM            => False,
+         --  No buffer switching at the end of transfer
+         CT             => False,
+         --  Current target memory is Memory 0 (addressed by the DMA_SxM0AR
+         --  pointer)
+         Reserved_20_20 => 0,  --  bufferable transfers not enabled
+         PBURST         => 0,  --  single transfer
+         MBURST         => 0,  --  single transfer
+         others         => <>);
+
+      DMA1_Periph.S0FCR.DMDIS := False;
+
+      --  "10. Activate the stream by setting the EN bit in the DMA_SxCR
+      --  register."
+      --
+      --  DMA Stream will be enabled later, before start of the transfer.
    end Configure_DMA;
 
    ---------------------------
@@ -82,16 +157,6 @@ package body LADO.Acquisition is
 
    procedure Configure_GPIO_PSSI is
    begin
-      --  Enable clocks
-
-      RCC_Periph.AHB4ENR.GPIOAEN := True;
-      RCC_Periph.AHB4ENR.GPIOBEN := True;
-      RCC_Periph.AHB4ENR.GPIOCEN := True;
-      RCC_Periph.AHB4ENR.GPIODEN := True;
-      RCC_Periph.AHB4ENR.GPIOEEN := True;
-      RCC_Periph.AHB4ENR.GPIOFEN := True;
-      RCC_Periph.AHB4ENR.GPIOGEN := True;
-
       GPIO_Utilities.Configure_L (GPIOA_Periph, 4, 13);
       --  PA4  -> PSSI_DE
       GPIO_Utilities.Configure_L (GPIOA_Periph, 5, 13);
@@ -143,10 +208,7 @@ package body LADO.Acquisition is
 
    procedure Configure_LPTIM4 is
    begin
-      RCC_Periph.D3CCIPR.LPTIM345SEL := 2#001#;
-      --  pll2_p_ck clock selected as kernel peripheral clock
-
-      RCC_Periph.APB4ENR.LPTIM4EN := True;
+      --  Clock selection is done in System_Clocks.
 
       LPTIM4_Periph.CR.ENABLE := False;
       --  Disable timer periperal to be able to modify CFGR register.
@@ -188,8 +250,6 @@ package body LADO.Acquisition is
 
    procedure Configure_PSSI is
    begin
-      RCC_Periph.AHB2ENR.DCMI_PSSIEN := True;
-
       PSSI_Periph.PSSI_CR.ENABLE := B_0x0;
       --  Disable PSSI to be able to configure it.
 
@@ -292,95 +352,6 @@ package body LADO.Acquisition is
       Configure_DMA;
       Configure_PSSI;
       Configure_LPTIM4;
-
-      --
-
-      DMA1_Periph.S0CR.EN := False;  --  ???
-
-      while DMA1_Periph.S0CR.EN loop
-         raise Program_Error;
-         --  null;
-      end loop;
-
-      --  "2.Set the peripheral port register address in the DMA_SxPAR
-      --  register. The data is moved from/ to this address to/ from the
-      --  peripheral port after the peripheral event.
-      --
-      --  3.Set the memory address in the DMA_SxMA0R register (and in the
-      --  DMA_SxMA1R register in the case of a double-buffer mode). The data
-      --  is written to or read from this memory after the peripheral event.
-      --
-      --  4.Configure the total number of data items to be transferred in the
-      --  DMA_SxNDTR register. After each peripheral event or each beat of the
-      --  burst, this value is decremented."
-
-      DMA1_Periph.S0PAR  := 16#4802_0428#;
-      DMA1_Periph.S0M0AR := 16#3000_0000#;
-      --  DMA1_Periph.S0M1AR := 16#3000_4000#;
-
-      --  "5.Use DMAMUX1 to route a DMA request line to the DMA channel."
-
-      DMAMUX1_Periph.DMAMUX_C0CR :=
-        (DMAREQ_ID => 75,     --  dcmi_dma
-         SOIE      => B_0x0,  --  Interrupt disabled
-         EGE       => B_0x0,  --  Event generation disabled
-         SE        => B_0x0,  --  Synchronization disabled
-         SPOL      => B_0x0,
-         --  No event, i.e. no synchronization nor detection.
-         NBREQ     => 0,
-         SYNC_ID   => 0,
-         others    => <>);
-      DMAMUX1_Periph.DMAMUX_RG0CR :=
-        (others => <>);
-
-      --  "6.If the peripheral is intended to be the flow controller and if it
-      --  supports this feature, set the PFCTRL bit in the DMA_SxCR register.
-      --
-      --  7.Configure the stream priority using the PL[1:0] bits in the
-      --  DMA_SxCR register.
-      --
-      --  8.Configure the FIFO usage (enable or disable, threshold in
-      --  transmission and reception).
-      --
-      --  9. Configure the data transfer direction, peripheral and memory
-      --  incremented/fixed mode, single or burst transactions, peripheral and
-      --  memory data widths, circular mode, double-buffer mode and interrupts
-      --  after half and/or full transfer, and/or errors in the DMA_SxCR
-      --  register."
-
-      DMA1_Periph.S0CR :=
-        (EN             => False,  --  stream disabled
-         DMEIE          => False,  --  DME interrupt disabled
-         TEIE           => True,   --  TE interrupt enabled
-         HTIE           => False,  --  HT interrupt disabled
-         TCIE           => True,   --  TC interrupt enabled
-         PFCTRL         => False,  --  DMA is the flow controller.
-         DIR            => 2#00#,  --  peripheral-to-memory
-         CIRC           => False,  --  circular mode disabled
-         PINC           => False,  --  peripheral address pointer fixed
-         MINC           => True,
-         --  memory address pointer is incremented after each data transfer
-         --  (increment is done according to MSIZE)
-         PSIZE          => 2#10#,  --  word (32-bit)
-         MSIZE          => 2#10#,  --  word (32-bit)
-         PINCOS         => <>,     --  if PINC
-         PL             => 2#10#,  --  high
-         DBM            => False,
-         --  No buffer switching at the end of transfer
-         CT             => False,
-         --  Current target memory is Memory 0 (addressed by the DMA_SxM0AR
-         --  pointer)
-         Reserved_20_20 => 0,  --  bufferable transfers not enabled
-         PBURST         => 0,  --  single transfer
-         MBURST         => 0,  --  single transfer
-         others         => <>);
-
-      DMA1_Periph.S0FCR.DMDIS := False;
-
-      --  "10. Activate the stream by setting the EN bit in the DMA_SxCR
-      --  register."
-
-      --  DMA1_Periph.S0CR.EN := True;
 
       A0B.ARMv7M.NVIC_Utilities.Clear_Pending (A0B.STM32H723.DMA1_STR0);
       A0B.ARMv7M.NVIC_Utilities.Enable_Interrupt (A0B.STM32H723.DMA1_STR0);
