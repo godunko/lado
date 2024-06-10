@@ -36,6 +36,9 @@ package body LADO.Acquisition is
    procedure DMA1_Stream0_Handler
      with Export, Convention => C, External_Name => "DMA1_Stream0_Handler";
 
+   procedure DCMI_PSSI_Handler
+     with Export, Convention => C, External_Name => "DCMI_PSSI_Handler";
+
    package GPIO_Utilities is
 
       subtype Low_Line is Integer range 0 .. 7;
@@ -274,6 +277,12 @@ package body LADO.Acquisition is
          OUTEN    => B_0x0,
          --  Receive mode: data is input synchronously with PSSI_PDCK
          others   => <>);
+
+      PSSI_Periph.PSSI_IER :=
+        (OVR_IE => B_0x1,
+         --  An interrupt is generated if either an overrun or an underrun
+         --  error occurred.
+         others => <>);
    end Configure_PSSI;
 
    --------------------
@@ -316,6 +325,17 @@ package body LADO.Acquisition is
 
    end GPIO_Utilities;
 
+   -----------------------
+   -- DCMI_PSSI_Handler --
+   -----------------------
+
+   procedure DCMI_PSSI_Handler is
+   begin
+      PSSI_Periph.PSSI_ICR.OVR_ISC := True;
+
+      raise Program_Error;
+   end DCMI_PSSI_Handler;
+
    --------------------------
    -- DMA1_Stream0_Handler --
    --------------------------
@@ -330,7 +350,6 @@ package body LADO.Acquisition is
          --  Stream 0 transfer complete interrupt flag
 
          DMA1_Periph.LIFCR := (CTCIF0 => True, others => <>);
-           --   CHTIF0  => True,
 
          --  Disable LPTIM to stop clock signal generation, disable DMA stream
          --  to be able to disable PSSI, disable PSSI to flush FIFO.
@@ -373,6 +392,9 @@ package body LADO.Acquisition is
 
       A0B.ARMv7M.NVIC_Utilities.Clear_Pending (A0B.STM32H723.DMA1_STR0);
       A0B.ARMv7M.NVIC_Utilities.Enable_Interrupt (A0B.STM32H723.DMA1_STR0);
+
+      A0B.ARMv7M.NVIC_Utilities.Clear_Pending (A0B.STM32H723.DCMI_PSSI);
+      A0B.ARMv7M.NVIC_Utilities.Enable_Interrupt (A0B.STM32H723.DCMI_PSSI);
    end Initialize;
 
    ---------
