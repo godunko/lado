@@ -4,6 +4,8 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
+pragma Ada_2022;
+
 with A0B.STM32H723.SVD.GPIO; use A0B.STM32H723.SVD.GPIO;
 with A0B.STM32H723.SVD.SPI;  use A0B.STM32H723.SVD.SPI;
 
@@ -13,11 +15,11 @@ package body LADO.Touch is
      array (A0B.Types.Unsigned_32 range <>) of A0B.Types.Unsigned_8;
 
    Measure_CMD : constant Unsigned_8_Array (0 .. 5) :=
-     (16#D3#, 16#00#, 16#00#,   --  Differential X
-      16#93#, 16#00#, 16#00#);  --  Differential Y
+     [16#D3#, 16#00#, 16#00#,   --  Differential X
+      16#93#, 16#00#, 16#00#];  --  Differential Y
 
    Done_CMD    : constant Unsigned_8_Array (0 .. 2) :=
-     (16#D0#, 16#00#, 16#00#);  --  Dummy differential X and shutdown
+     [16#D0#, 16#00#, 16#00#];  --  Dummy differential X and shutdown
 
 --     CMD : constant Unsigned_8_Array (0 .. 11) :=
 --       --  (16#B5#, 16#00#, 16#00#,
@@ -27,6 +29,8 @@ package body LADO.Touch is
 --       (16#B3#, 16#00#, 16#00#,
 --        16#C3#, 16#00#, 16#00#,
    Measure_DAT : Unsigned_8_Array (0 .. 5) with Volatile;
+
+   Debonce_Counter : Natural := 0;
 
    --------------------
    -- Configure_GPIO --
@@ -112,7 +116,7 @@ package body LADO.Touch is
          others  => <>);
       SPI6_Periph.CFG2 :=
         (MSSI    => 0,       --  (+1)
-         MIDI    => 0,
+         MIDI    => 15,
          IOSWP   => False,   --  no swap
          COMM    => 2#00#,   --  full-duplex
          SP      => 2#000#,  --  SPI Motorola
@@ -177,6 +181,20 @@ package body LADO.Touch is
               and 16#FFF#);
       end Convert;
 
+      --------------
+      -- Is_Valid --
+      --------------
+
+      function Is_Valid (B1, B2, B3 : A0B.Types.Unsigned_8) return Boolean is
+         use type A0B.Types.Unsigned_8;
+
+      begin
+         return
+           B1 = 2#0000_0000#
+           and (B2 and 2#1000_0000#) = 2#0000_0000#
+           and (B3 and 2#1111_1000#) = 2#0000_0000#;
+      end Is_Valid;
+
       TXDR : A0B.Types.Unsigned_8
         with Import, Address => SPI6_Periph.TXDR'Address;
       RXDR : A0B.Types.Unsigned_8
@@ -188,9 +206,20 @@ package body LADO.Touch is
       Y_Current  : A0B.Types.Unsigned_12;
 
    begin
-      State.Is_Touched := not GPIOA_Periph.IDR.ID.Arr (12);
+      State.Is_Touched := False;
+      --  State.Is_Touched := not GPIOA_Periph.IDR.ID.Arr (12);
       State.X          := 0;
       State.Y          := 0;
+
+      if not GPIOA_Periph.IDR.ID.Arr (12) then
+         Debonce_Counter := @ + 1;
+
+      else
+         Debonce_Counter := 0;
+      end if;
+
+      if Debonce_Counter > 2 then
+         State.Is_Touched := True;
 
       --  if State.Is_Touched then
          SPI6_Periph.CR1.SPE := True;
@@ -199,14 +228,20 @@ package body LADO.Touch is
          --  Read sensor till two consequentive measures are equal.
 
          loop
-            for J in Measure_CMD'Range loop
-               TXDR := Measure_CMD (J);
+            loop
+               for J in Measure_CMD'Range loop
+                  TXDR := Measure_CMD (J);
 
-               while not SPI6_Periph.SR.RXP loop
-                  null;
+                  while not SPI6_Periph.SR.RXP loop
+                     null;
+                  end loop;
+
+                  Measure_DAT (J) := RXDR;
                end loop;
 
-               Measure_DAT (J) := RXDR;
+               exit when
+                 Is_Valid (Measure_DAT (0), Measure_DAT (1), Measure_DAT (2))
+                   and Is_Valid (Measure_DAT (3), Measure_DAT (4), Measure_DAT (5));
             end loop;
 
             X_Current := Convert (Measure_DAT (1), Measure_DAT (2));
@@ -223,14 +258,19 @@ package body LADO.Touch is
 
          --  Send "shutdown" command and enable interrupt
 
-         for J in Done_CMD'Range loop
-            TXDR := Done_CMD (J);
+         loop
+            for J in Done_CMD'Range loop
+               TXDR := Done_CMD (J);
 
-            while not SPI6_Periph.SR.RXP loop
-               null;
+               while not SPI6_Periph.SR.RXP loop
+                  null;
+               end loop;
+
+               Measure_DAT (J) := RXDR;
             end loop;
 
-            Measure_DAT (J) := RXDR;
+            exit when
+              Is_Valid (Measure_DAT (0), Measure_DAT (1), Measure_DAT (2));
          end loop;
 
          SPI6_Periph.CR1.SPE := False;
@@ -256,7 +296,7 @@ package body LADO.Touch is
    --           VAL.X  := Convert (DAT (7), DAT (8));
    --           VAL.Y  := Convert (DAT (10), DAT (11));
    --        end if;
-      --  end if;
+      end if;
    end Get;
 
    ----------------
