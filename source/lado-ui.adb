@@ -27,6 +27,22 @@ package body LADO.UI is
       Mask  : A0B.Types.Unsigned_16;
       First : A0B.Types.Unsigned_32);
 
+   procedure Draw (First : A0B.Types.Unsigned_32);
+
+   ----------
+   -- Draw --
+   ----------
+
+   procedure Draw (First : A0B.Types.Unsigned_32) is
+   begin
+      Draw_Line (40, 2#0000_0001#, First);
+      Draw_Line (80, 2#0000_0010#, First);
+      Draw_Line (120, 2#0000_0100#, First);
+      Draw_Line (160, 2#0000_1000#, First);
+      Draw_Line (200, 2#0001_0000#, First);
+      Draw_Line (240, 2#0010_0000#, First);
+   end Draw;
+
    ---------------
    -- Draw_Line --
    ---------------
@@ -128,12 +144,7 @@ package body LADO.UI is
       First := @ - 10;
 
       loop
-         Draw_Line (40, 2#0000_0001#, First);
-         Draw_Line (80, 2#0000_0010#, First);
-         Draw_Line (120, 2#0000_0100#, First);
-         Draw_Line (160, 2#0000_1000#, First);
-         Draw_Line (200, 2#0001_0000#, First);
-         Draw_Line (240, 2#0010_0000#, First);
+         Draw (First);
 
          declare
             use type A0B.Types.Integer_32;
@@ -157,10 +168,26 @@ package body LADO.UI is
                      X_End := Current.X;
                      Y_End := Current.Y;
 
-                  else
                      Start :=
-                       A0B.Types.Integer_32 (First)
-                         - (X_End - X_Start) / 10;
+                       A0B.Types.Integer_32 (First) - (X_End - X_Start);
+
+                     Start :=
+                       A0B.Types.Integer_32'Min
+                         (@,
+                          A0B.Types.Integer_32
+                            (LADO.Acquisition.Buffer'Last) - 800);
+                     Start := A0B.Types.Integer_32'Max (@, 0);
+
+                     Draw (A0B.Types.Unsigned_32 (Start));
+                     --  First := A0B.Types.Unsigned_32 (Start);
+
+                  else
+                     --  X_End := Current.X;
+                     --  Y_End := Current.Y;
+                     Tracking := False;
+
+                     Start :=
+                       A0B.Types.Integer_32 (First) - (X_End - X_Start);
 
                      Start :=
                        A0B.Types.Integer_32'Min
@@ -171,7 +198,8 @@ package body LADO.UI is
 
                      First := A0B.Types.Unsigned_32 (Start);
 
-                     exit;
+                     Draw (A0B.Types.Unsigned_32 (Start));
+                     --  exit;
                      --  raise Program_Error;
                   end if;
 

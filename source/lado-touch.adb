@@ -212,14 +212,16 @@ package body LADO.Touch is
             X_Current := Convert (Measure_DAT (1), Measure_DAT (2));
             Y_Current := Convert (Measure_DAT (4), Measure_DAT (5));
 
-            exit when X_Current = X_Previous and Y_Current = Y_Previous;
-            exit when not State.Is_Touched;
+            exit when X_Current = X_Previous and Y_Current = Y_Previous
+              and X_Current /= 0 and Y_Current /= 0;
+            exit when not State.Is_Touched
+              and X_Current /= 0 and Y_Current /= 0;
 
             X_Previous := X_Current;
             Y_Previous := Y_Current;
          end loop;
 
-         --  Send "shutdown" command
+         --  Send "shutdown" command and enable interrupt
 
          for J in Done_CMD'Range loop
             TXDR := Done_CMD (J);
@@ -233,11 +235,17 @@ package body LADO.Touch is
 
          SPI6_Periph.CR1.SPE := False;
 
+         if GPIOA_Periph.IDR.ID.Arr (12) then
+            State.Is_Touched := False;
+            X_Current := 0;
+            Y_Current := 0;
+         end if;
+
          --  Convert result
 
-         State.X := 4095 - A0B.Types.Integer_32 (Y_Current);
-         State.Y := 4095 - A0B.Types.Integer_32 (X_Current);
-   --
+         State.X := (4095 - A0B.Types.Integer_32 (Y_Current)) * 800 / 4096;
+         State.Y := (4095 - A0B.Types.Integer_32 (X_Current)) * 480 / 4096;
+
    --        if DAT (0) = 16#00#
    --          and DAT (3) = 16#00#
    --          and DAT (6) = 16#00#
@@ -256,9 +264,32 @@ package body LADO.Touch is
    ----------------
 
    procedure Initialize is
+      TXDR : A0B.Types.Unsigned_8
+        with Import, Address => SPI6_Periph.TXDR'Address;
+      RXDR : A0B.Types.Unsigned_8
+        with Import, Address => SPI6_Periph.RXDR'Address;
+
    begin
       Configure_SPI;
       Configure_GPIO;
+
+      SPI6_Periph.CR1.SPE := True;
+      SPI6_Periph.CR1.CSTART := True;
+
+      --  Send "shutdown" command and enable interrupt
+
+      for J in Done_CMD'Range loop
+         TXDR := Done_CMD (J);
+
+         while not SPI6_Periph.SR.RXP loop
+            null;
+         end loop;
+
+         Measure_DAT (J) := RXDR;
+      end loop;
+
+      SPI6_Periph.CR1.SPE := False;
+
    end Initialize;
 
    --  ---------------
