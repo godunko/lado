@@ -5,8 +5,8 @@
 --
 
 --  with System.Storage_Elements;
---
---  with A0B.Types;
+
+with A0B.Types;
 
 package LADO.Touch
   with Preelaborate
@@ -14,13 +14,41 @@ is
 
    procedure Initialize;
 
-   --  procedure Run;
-   --
-   --  type Unsigned_16_Array is
-   --    array (A0B.Types.Unsigned_32 range <>) of A0B.Types.Unsigned_16
-   --      with Pack;
-   --
-   --  Buffer : Unsigned_16_Array (0 .. 8191)
-   --    with Address => System.Storage_Elements.To_Address (16#3000_0000#);
+   type Touch_State is record
+      X          : A0B.Types.Integer_32;
+      Y          : A0B.Types.Integer_32;
+      Is_Touched : Boolean;
+   end record;
+
+   procedure Get (State : out Touch_State);
+
+--     procedure Get_Touch;
+--
+--     function Is_Touched return Boolean;
+--
+--     type Values is record
+--        X  : A0B.Types.Unsigned_12;
+--        Y  : A0B.Types.Unsigned_12;
+--        Z1 : A0B.Types.Unsigned_12;
+--        Z2 : A0B.Types.Unsigned_12;
+--     end record;
+--
+--     VAL : Values;
+--
+--  private
+--
+--     type Unsigned_8_Array is
+--       array (A0B.Types.Unsigned_32 range <>) of A0B.Types.Unsigned_8;
+--
+--     CMD : constant Unsigned_8_Array (0 .. 11) :=
+--       --  (16#B5#, 16#00#, 16#00#,
+--       --   16#C5#, 16#00#, 16#00#,
+--       --   16#D5#, 16#00#, 16#00#,
+--       --   16#94#, 16#00#, 16#00#);
+--       (16#B3#, 16#00#, 16#00#,
+--        16#C3#, 16#00#, 16#00#,
+--        16#D3#, 16#00#, 16#00#,
+--        16#90#, 16#00#, 16#00#);
+--     DAT : Unsigned_8_Array (0 .. 11) with Volatile;
 
 end LADO.Touch;
