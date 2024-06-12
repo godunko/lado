@@ -271,11 +271,6 @@ package body LADO.Touch is
    ----------------
 
    procedure Initialize is
-      TXDR : A0B.Types.Unsigned_8
-        with Import, Address => SPI6_Periph.TXDR'Address;
-      RXDR : A0B.Types.Unsigned_8
-        with Import, Address => SPI6_Periph.RXDR'Address;
-
    begin
       Configure_SPI;
       Configure_GPIO;
@@ -285,50 +280,9 @@ package body LADO.Touch is
 
       --  Send "shutdown" command and enable interrupt
 
-      for J in Power_Done_CMD'Range loop
-         TXDR := Power_Done_CMD (J);
-
-         while not SPI6_Periph.SR.RXP loop
-            null;
-         end loop;
-
-         Measure_DAT (J) := RXDR;
-      end loop;
+      Transfer (Power_Done_CMD);
 
       SPI6_Periph.CR1.SPE := False;
-
-      --  Transfer (Power_Done_CMD);
    end Initialize;
-
-   --  ---------------
-   --  -- Get_Touch --
-   --  ---------------
-   --
-   --  procedure Get_Touch is
-   --
-   --     use type A0B.Types.Unsigned_8;
-   --
-   --  begin
-   --  end Get_Touch;
-   --
-   --  ----------------
-   --  -- Initialize --
-   --  ----------------
-   --
-   --  procedure Initialize is
-   --  begin
-   --
-   --     Get_Touch;
-   --  end Initialize;
-   --
-   --  ----------------
-   --  -- Is_Touched --
-   --  ----------------
-   --
-   --  function Is_Touched return Boolean is
-   --  begin
-   --     return not GPIOA_Periph.IDR.ID.Arr (12);
-   --  end Is_Touched;
-   --
 
 end LADO.Touch;
