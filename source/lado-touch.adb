@@ -14,11 +14,11 @@ package body LADO.Touch is
    type Unsigned_8_Array is
      array (A0B.Types.Unsigned_32 range <>) of A0B.Types.Unsigned_8;
 
-   Measure_CMD : constant Unsigned_8_Array (0 .. 5) :=
+   Measure_CMD    : constant Unsigned_8_Array (0 .. 5) :=
      [16#D3#, 16#00#, 16#00#,   --  Differential X
       16#93#, 16#00#, 16#00#];  --  Differential Y
 
-   Done_CMD    : constant Unsigned_8_Array (0 .. 2) :=
+   Power_Done_CMD : constant Unsigned_8_Array (0 .. 2) :=
      [16#D0#, 16#00#, 16#00#];  --  Dummy differential X and shutdown
 
 --     CMD : constant Unsigned_8_Array (0 .. 11) :=
@@ -99,6 +99,11 @@ package body LADO.Touch is
    procedure Configure_SPI is
    begin
       --  SPI6 peripheral clock is set to PCLK4 and enabled in System_Clocks.
+      --  It runs @130MHz, XPT2046 minimum acquisition time is 1.5
+      --  microseconds and it is done during 3 clock cycles. Use of 128 as
+      --  divider provides 2.954 microseconds for acquisition; use of 64
+      --  as divider provides 1.477 microseconds, which is a bit less than
+      --  required.
 
       SPI6_Periph.CR1.SPE := False;
       --  Disable to be able to configure
@@ -112,11 +117,11 @@ package body LADO.Touch is
          TXDMAEN => False,   --  Tx DMA disabled
          CRCSIZE => <>,      --  if CRCEN
          CRCEN   => False,   --  CRC calculation disabled
-         MBR     => 2#101#,  --  SPI master clock/64
+         MBR     => 2#110#,  --  SPI master clock/128
          others  => <>);
       SPI6_Periph.CFG2 :=
         (MSSI    => 0,       --  (+1)
-         MIDI    => 15,
+         MIDI    => 0,
          IOSWP   => False,   --  no swap
          COMM    => 2#00#,   --  full-duplex
          SP      => 2#000#,  --  SPI Motorola
@@ -259,8 +264,8 @@ package body LADO.Touch is
          --  Send "shutdown" command and enable interrupt
 
          loop
-            for J in Done_CMD'Range loop
-               TXDR := Done_CMD (J);
+            for J in Power_Done_CMD'Range loop
+               TXDR := Power_Done_CMD (J);
 
                while not SPI6_Periph.SR.RXP loop
                   null;
@@ -318,8 +323,8 @@ package body LADO.Touch is
 
       --  Send "shutdown" command and enable interrupt
 
-      for J in Done_CMD'Range loop
-         TXDR := Done_CMD (J);
+      for J in Power_Done_CMD'Range loop
+         TXDR := Power_Done_CMD (J);
 
          while not SPI6_Periph.SR.RXP loop
             null;
