@@ -14,23 +14,18 @@ package body LADO.Touch is
    type Unsigned_8_Array is
      array (A0B.Types.Unsigned_32 range <>) of A0B.Types.Unsigned_8;
 
-   Measure_CMD    : constant Unsigned_8_Array (0 .. 5) :=
-     [16#D3#, 16#00#, 16#00#,   --  Differential X
-      16#93#, 16#00#, 16#00#];  --  Differential Y
-
+   Power_Up_CMD    : constant Unsigned_8_Array (0 .. 2) :=
+     [2#1101_0011#, 16#00#, 16#00#];  --  Power up, PENIRQ disable
+   Measure_XY_CMD  : constant Unsigned_8_Array (0 .. 5) :=
+     [2#1101_0011#, 16#00#, 16#00#,   --  X, 12bit, differential
+      2#1001_0011#, 16#00#, 16#00#];  --  Y, 12bit, differential
+   Measure_Z12_CMD : constant Unsigned_8_Array (0 .. 5) :=
+     [2#1011_0011#, 16#00#, 16#00#,   --  Z1, 12bit, differential
+      2#1100_0011#, 16#00#, 16#00#];  --  Z2, 12bit, differential
    Power_Done_CMD : constant Unsigned_8_Array (0 .. 2) :=
-     [16#D0#, 16#00#, 16#00#];  --  Dummy differential X and shutdown
+     [2#1101_0000#, 16#00#, 16#00#];  --  Power done, PENIRQ enable
 
---     CMD : constant Unsigned_8_Array (0 .. 11) :=
---       --  (16#B5#, 16#00#, 16#00#,
---       --   16#C5#, 16#00#, 16#00#,
---       --   16#D5#, 16#00#, 16#00#,
---       --   16#94#, 16#00#, 16#00#);
---       (16#B3#, 16#00#, 16#00#,
---        16#C3#, 16#00#, 16#00#,
-   Measure_DAT : Unsigned_8_Array (0 .. 5) with Volatile;
-
-   Debonce_Counter : Natural := 0;
+   Measure_DAT    : Unsigned_8_Array (0 .. 5) with Volatile;
 
    --------------------
    -- Configure_GPIO --
@@ -160,6 +155,28 @@ package body LADO.Touch is
          others   => <>);
    end Configure_SPI;
 
+   --------------
+   -- Transfer --
+   --------------
+
+   procedure Transfer (Command : Unsigned_8_Array) is
+      TXDR : A0B.Types.Unsigned_8
+        with Import, Address => SPI6_Periph.TXDR'Address;
+      RXDR : A0B.Types.Unsigned_8
+        with Import, Address => SPI6_Periph.RXDR'Address;
+
+   begin
+      for J in Command'Range loop
+         TXDR := Command (J);
+
+         while not SPI6_Periph.SR.RXP loop
+            null;
+         end loop;
+
+         Measure_DAT (J) := RXDR;
+      end loop;
+   end Transfer;
+
    ---------
    -- Get --
    ---------
@@ -186,121 +203,66 @@ package body LADO.Touch is
               and 16#FFF#);
       end Convert;
 
-      --------------
-      -- Is_Valid --
-      --------------
-
-      function Is_Valid (B1, B2, B3 : A0B.Types.Unsigned_8) return Boolean is
-         use type A0B.Types.Unsigned_8;
-
-      begin
-         return
-           B1 = 2#0000_0000#
-           and (B2 and 2#1000_0000#) = 2#0000_0000#
-           and (B3 and 2#1111_1000#) = 2#0000_0000#;
-      end Is_Valid;
-
-      TXDR : A0B.Types.Unsigned_8
-        with Import, Address => SPI6_Periph.TXDR'Address;
-      RXDR : A0B.Types.Unsigned_8
-        with Import, Address => SPI6_Periph.RXDR'Address;
-
       X_Previous : A0B.Types.Unsigned_12 := 0;
       X_Current  : A0B.Types.Unsigned_12;
       Y_Previous : A0B.Types.Unsigned_12 := 0;
       Y_Current  : A0B.Types.Unsigned_12;
+      Z1         : A0B.Types.Unsigned_12;
+      Z2         : A0B.Types.Unsigned_12;
 
    begin
-      State.Is_Touched := False;
-      --  State.Is_Touched := not GPIOA_Periph.IDR.ID.Arr (12);
+      State.Is_Touched := not GPIOA_Periph.IDR.ID.Arr (12);
       State.X          := 0;
       State.Y          := 0;
 
-      if not GPIOA_Periph.IDR.ID.Arr (12) then
-         Debonce_Counter := @ + 1;
-
-      else
-         Debonce_Counter := 0;
-      end if;
-
-      if Debonce_Counter > 2 then
-         State.Is_Touched := True;
-
-      --  if State.Is_Touched then
+      if State.Is_Touched then
          SPI6_Periph.CR1.SPE := True;
          SPI6_Periph.CR1.CSTART := True;
+
+         --  Power up. It is recommended to do on high transfer speed to let
+         --  power to stabilize.
+
+         Transfer (Power_Up_CMD);
 
          --  Read sensor till two consequentive measures are equal.
 
          loop
-            loop
-               for J in Measure_CMD'Range loop
-                  TXDR := Measure_CMD (J);
-
-                  while not SPI6_Periph.SR.RXP loop
-                     null;
-                  end loop;
-
-                  Measure_DAT (J) := RXDR;
-               end loop;
-
-               exit when
-                 Is_Valid (Measure_DAT (0), Measure_DAT (1), Measure_DAT (2))
-                   and Is_Valid (Measure_DAT (3), Measure_DAT (4), Measure_DAT (5));
-            end loop;
+            Transfer (Measure_XY_CMD);
 
             X_Current := Convert (Measure_DAT (1), Measure_DAT (2));
             Y_Current := Convert (Measure_DAT (4), Measure_DAT (5));
 
-            exit when X_Current = X_Previous and Y_Current = Y_Previous
-              and X_Current /= 0 and Y_Current /= 0;
-            exit when not State.Is_Touched
-              and X_Current /= 0 and Y_Current /= 0;
+            exit when X_Current = X_Previous and Y_Current = Y_Previous;
 
             X_Previous := X_Current;
             Y_Previous := Y_Current;
          end loop;
 
-         --  Send "shutdown" command and enable interrupt
+         --  Read Z1/Z2 to check touch state. PENIRQ can't used here, it is
+         --  disabled.
 
-         loop
-            for J in Power_Done_CMD'Range loop
-               TXDR := Power_Done_CMD (J);
+         Transfer (Measure_Z12_CMD);
+         Z1 := Convert (Measure_DAT (1), Measure_DAT (2));
+         Z2 := Convert (Measure_DAT (4), Measure_DAT (5));
 
-               while not SPI6_Periph.SR.RXP loop
-                  null;
-               end loop;
+         if (Z2 - Z1) > 3_000 then
+            State.Is_Touched := False;
+            X_Current := 4_095;
+            Y_Current := 4_095;
+         end if;
 
-               Measure_DAT (J) := RXDR;
-            end loop;
+         --  Send power done command and enable PENIRQ
 
-            exit when
-              Is_Valid (Measure_DAT (0), Measure_DAT (1), Measure_DAT (2));
-         end loop;
+         Transfer (Power_Done_CMD);
+
+         --  Disable SPI controller
 
          SPI6_Periph.CR1.SPE := False;
-
-         if GPIOA_Periph.IDR.ID.Arr (12) then
-            State.Is_Touched := False;
-            X_Current := 0;
-            Y_Current := 0;
-         end if;
 
          --  Convert result
 
          State.X := (4095 - A0B.Types.Integer_32 (Y_Current)) * 800 / 4096;
          State.Y := (4095 - A0B.Types.Integer_32 (X_Current)) * 480 / 4096;
-
-   --        if DAT (0) = 16#00#
-   --          and DAT (3) = 16#00#
-   --          and DAT (6) = 16#00#
-   --          and DAT (9) = 16#00#
-   --        then
-   --           VAL.Z1 := Convert (DAT (1), DAT (2));
-   --           VAL.Z2 := Convert (DAT (4), DAT (5));
-   --           VAL.X  := Convert (DAT (7), DAT (8));
-   --           VAL.Y  := Convert (DAT (10), DAT (11));
-   --        end if;
       end if;
    end Get;
 
@@ -335,6 +297,7 @@ package body LADO.Touch is
 
       SPI6_Periph.CR1.SPE := False;
 
+      --  Transfer (Power_Done_CMD);
    end Initialize;
 
    --  ---------------
