@@ -1,7 +1,7 @@
-
+# Connections
 
 | STM32H7xx |       |
-| +-------+ | +---+ |
+| :-------: | :---: |
 | FMC_NE1     | D7    |
 | FMC_A19^    | E3    |
 | FMC_NWE     | D5    |
@@ -23,7 +23,7 @@
 | FMC_D13     | D8    |
 | FMC_D14     | D9    |
 | FMC_D15     | D10   |
-
+|             |       |
 | PSSI_PDCK/DCMI_PIXCLK | A6    |
 | PSSI_DE/DCMI_HSYNC    | A4    |
 | PSSI_RDY/DCMI_VSYNC   | B7    |
