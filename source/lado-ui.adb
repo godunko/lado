@@ -29,6 +29,8 @@ package body LADO.UI is
 
    procedure Draw (First : A0B.Types.Unsigned_32);
 
+   First : A0B.Types.Unsigned_32 := 0;
+
    ----------
    -- Draw --
    ----------
@@ -77,31 +79,13 @@ package body LADO.UI is
       end loop;
    end Draw_Line;
 
-   ----------------
-   -- Initialize --
-   ----------------
+   --------------------
+   -- Do_Acquisition --
+   --------------------
 
-   procedure Initialize is
-   begin
-      null;
-   end Initialize;
-
-   ---------
-   -- Run --
-   ---------
-
-   Cycles : Natural := 0 with Volatile;
-   X_Start  : A0B.Types.Integer_32 with Volatile;
-   Y_Start  : A0B.Types.Integer_32 with Volatile;
-   X_End    : A0B.Types.Integer_32 with Volatile;
-   Y_End    : A0B.Types.Integer_32 with Volatile;
-   Start    : A0B.Types.Integer_32 with Volatile;
-
-   procedure Run is
+   procedure Do_Acquisition is
       use type System.Storage_Elements.Storage_Count;
       use type A0B.Types.Unsigned_32;
-
-      First : A0B.Types.Unsigned_32;
 
    begin
       Acquisition :
@@ -112,7 +96,7 @@ package body LADO.UI is
             LADO.Acquisition.Buffer'Length * 2);
 
          LADO.Acquisition.Run;
-         Cycles := @ + 1;
+         --  Cycles := @ + 1;
 
          while not LADO.Acquisition.Done loop
             null;
@@ -142,7 +126,29 @@ package body LADO.UI is
 
       First := A0B.Types.Unsigned_32'Max (@, 10);
       First := @ - 10;
+   end Do_Acquisition;
 
+   ----------------
+   -- Initialize --
+   ----------------
+
+   procedure Initialize is
+   begin
+      null;
+   end Initialize;
+
+   ---------
+   -- Run --
+   ---------
+
+   X_Start  : A0B.Types.Integer_32 with Volatile;
+   Y_Start  : A0B.Types.Integer_32 with Volatile;
+   X_End    : A0B.Types.Integer_32 with Volatile;
+   Y_End    : A0B.Types.Integer_32 with Volatile;
+   Start    : A0B.Types.Integer_32 with Volatile;
+
+   procedure Run is
+   begin
       loop
          Draw (First);
 
@@ -188,7 +194,6 @@ package body LADO.UI is
 
                      Start :=
                        A0B.Types.Integer_32 (First) - (X_End - X_Start);
-
                      Start :=
                        A0B.Types.Integer_32'Min
                          (@,
@@ -199,7 +204,15 @@ package body LADO.UI is
                      First := A0B.Types.Unsigned_32 (Start);
 
                      Draw (A0B.Types.Unsigned_32 (Start));
-                     --  exit;
+
+                     if abs (X_Start - X_End) < 100
+                       and abs (Y_Start - Y_End) < 100
+                       and X_Start > 700 and Y_Start < 100
+                     then
+                        Do_Acquisition;
+                     end if;
+
+                     exit;
                      --  raise Program_Error;
                   end if;
 
