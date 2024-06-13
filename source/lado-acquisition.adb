@@ -7,9 +7,9 @@
 pragma Ada_2022;
 
 with A0B.ARMv7M.NVIC_Utilities; use A0B.ARMv7M.NVIC_Utilities;
+with A0B.STM32H723.GPIO;
 with A0B.STM32H723.SVD.DMA;     use A0B.STM32H723.SVD.DMA;
 with A0B.STM32H723.SVD.DMAMUX;  use A0B.STM32H723.SVD.DMAMUX;
-with A0B.STM32H723.SVD.GPIO;    use A0B.STM32H723.SVD.GPIO;
 with A0B.STM32H723.SVD.LPTIM;   use A0B.STM32H723.SVD.LPTIM;
 with A0B.STM32H723.SVD.PSSI;    use A0B.STM32H723.SVD.PSSI;
 
@@ -18,6 +18,27 @@ package body LADO.Acquisition is
    --  3000_0000 .. 3FFF  SRAM1
    --  3000_4000 .. 7FFF  SRAM2
    --  3800_0000 .. 3FFF  SRAM4
+
+   LPTIM4_OUT : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PA2;
+   PSSI_D0    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PC6;
+   PSSI_D1    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PC7;
+   PSSI_D2    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PC8;
+   PSSI_D3    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PC9;
+   PSSI_D4    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE4;
+   PSSI_D5    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD3;
+   PSSI_D6    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE5;
+   PSSI_D7    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE6;
+   PSSI_D8    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PC10;
+   PSSI_D9    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PC12;
+   PSSI_D10   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD6;
+   PSSI_D11   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD2;
+   PSSI_D12   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PF11;
+   PSSI_D13   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD13;
+   PSSI_D14   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PA5;
+   PSSI_D15   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PC5;
+   PSSI_DE    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PA4;
+   PSSI_PDCK  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PA6;
+   PSSI_RDY   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PB7;
 
    procedure Configure_PSSI;
 
@@ -38,23 +59,6 @@ package body LADO.Acquisition is
 
    procedure DCMI_PSSI_Handler
      with Export, Convention => C, External_Name => "DCMI_PSSI_Handler";
-
-   package GPIO_Utilities is
-
-      subtype Low_Line is Integer range 0 .. 7;
-      subtype High_Line is Integer range 8 .. 15;
-
-      procedure Configure_L
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : Low_Line;
-         Alternative : AFRH_AFSEL_Element);
-
-      procedure Configure_H
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : High_Line;
-         Alternative : AFRH_AFSEL_Element);
-
-   end GPIO_Utilities;
 
    -------------------
    -- Configure_DMA --
@@ -155,8 +159,10 @@ package body LADO.Acquisition is
 
    procedure Configure_GPIO_LPTIM4 is
    begin
-      --  PA2 -> LPTIM4_OUT
-      GPIO_Utilities.Configure_L (GPIOA_Periph, 2, 3);
+      LPTIM4_OUT.Configure_Alternative_Function
+        (A0B.STM32H723.LPTIM4_OUT,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
    end Configure_GPIO_LPTIM4;
 
    -------------------------
@@ -165,49 +171,82 @@ package body LADO.Acquisition is
 
    procedure Configure_GPIO_PSSI is
    begin
-      GPIO_Utilities.Configure_L (GPIOA_Periph, 4, 13);
-      --  PA4  -> PSSI_DE
-      GPIO_Utilities.Configure_L (GPIOA_Periph, 5, 13);
-      --  PA5  -> PSSI_D14
-      GPIO_Utilities.Configure_L (GPIOA_Periph, 6, 13);
-      --  PA6  -> PSSI_PDCK
-
-      GPIO_Utilities.Configure_L (GPIOB_Periph, 7, 13);
-      --  PB7  -> PSSI_RDY
-
-      GPIO_Utilities.Configure_L (GPIOC_Periph, 5, 4);
-      --  PC5  -> PSSI_D15
-      GPIO_Utilities.Configure_L (GPIOC_Periph, 6, 13);
-      --  PC6  -> PSSI_D0
-      GPIO_Utilities.Configure_L (GPIOC_Periph, 7, 13);
-      --  PC7  -> PSSI_D1
-      GPIO_Utilities.Configure_H (GPIOC_Periph, 8, 13);
-      --  PC8  -> PSSI_D2
-      GPIO_Utilities.Configure_H (GPIOC_Periph, 9, 13);
-      --  PC9  -> PSSI_D3
-      GPIO_Utilities.Configure_H (GPIOC_Periph, 10, 13);
-      --  PC10 -> PSSI_D8
-      GPIO_Utilities.Configure_H (GPIOC_Periph, 12, 13);
-      --  PC12 -> PSSI_D9
-
-      GPIO_Utilities.Configure_L (GPIOD_Periph, 2, 13);
-      --  PD2  -> PSSI_D11
-      GPIO_Utilities.Configure_L (GPIOD_Periph, 3, 13);
-      --  PD3  -> PSSI_D5
-      GPIO_Utilities.Configure_L (GPIOD_Periph, 6, 13);
-      --  PD6  -> PSSI_D10
-      GPIO_Utilities.Configure_H (GPIOD_Periph, 13, 13);
-      --  PD13 -> PSSI_D13
-
-      GPIO_Utilities.Configure_L (GPIOE_Periph, 4, 13);
-      --  PE4  -> PSSI_D4
-      GPIO_Utilities.Configure_L (GPIOE_Periph, 5, 13);
-      --  PE5  -> PSSI_D6
-      GPIO_Utilities.Configure_L (GPIOE_Periph, 6, 13);
-      --  PE6  -> PSSI_D7
-
-      GPIO_Utilities.Configure_H (GPIOF_Periph, 11, 13);
-      --  PF11 -> PSSI_D12
+      PSSI_D0.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D0,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D1.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D1,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D2.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D2,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D3.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D3,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D4.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D4,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D5.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D5,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D6.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D6,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D7.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D7,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D8.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D8,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D9.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D9,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D10.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D10,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D11.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D11,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D12.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D12,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D13.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D13,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D14.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D14,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_D15.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_D15,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_DE.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_DE,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_PDCK.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_PDCK,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
+      PSSI_RDY.Configure_Alternative_Function
+        (A0B.STM32H723.PSSI_RDY,
+         Speed => A0B.STM32H723.GPIO.Very_High,
+         Pull  => A0B.STM32H723.GPIO.Pull_Up);
    end Configure_GPIO_PSSI;
 
    ----------------------
@@ -284,46 +323,6 @@ package body LADO.Acquisition is
          --  error occurred.
          others => <>);
    end Configure_PSSI;
-
-   --------------------
-   -- GPIO_Utilities --
-   --------------------
-
-   package body GPIO_Utilities is
-
-      -----------------
-      -- Configure_H --
-      -----------------
-
-      procedure Configure_H
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : High_Line;
-         Alternative : AFRH_AFSEL_Element) is
-      begin
-         Peripheral.OSPEEDR.Arr (Line) := 2#11#;      --  Very high speed
-         Peripheral.OTYPER.OT.Arr (Line) := False;    --  Output push-pull
-         Peripheral.PUPDR.Arr (Line) := 2#01#;        --  Pullup
-         Peripheral.AFRH.Arr (Line) := Alternative;   --  Alternate function
-         Peripheral.MODER.Arr (Line) := 2#10#;        --  Alternate function
-      end Configure_H;
-
-      -----------------
-      -- Configure_L --
-      -----------------
-
-      procedure Configure_L
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : Low_Line;
-         Alternative : AFRH_AFSEL_Element) is
-      begin
-         Peripheral.OSPEEDR.Arr (Line) := 2#11#;      --  Very high speed
-         Peripheral.OTYPER.OT.Arr (Line) := False;    --  Output push-pull
-         Peripheral.PUPDR.Arr (Line) := 2#01#;        --  Pullup
-         Peripheral.AFRL.Arr (Line) := Alternative;   --  Alternate function
-         Peripheral.MODER.Arr (Line) := 2#10#;        --  Alternate function
-      end Configure_L;
-
-   end GPIO_Utilities;
 
    -----------------------
    -- DCMI_PSSI_Handler --

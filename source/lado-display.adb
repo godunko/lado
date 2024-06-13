@@ -8,14 +8,35 @@ with System.Storage_Elements;
 
 with A0B.ARMv7M.Memory_Protection_Unit; use A0B.ARMv7M.Memory_Protection_Unit;
 with A0B.Delays;
+with A0B.STM32H723.GPIO;
 with A0B.STM32H723.SVD.FMC;             use A0B.STM32H723.SVD.FMC;
-with A0B.STM32H723.SVD.GPIO;            use A0B.STM32H723.SVD.GPIO;
 with A0B.Time;
 with A0B.Types;
 
 with LADO.Painter;
 
 package body LADO.Display is
+
+   FMC_A4  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PF4;
+   FMC_D0  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD14;
+   FMC_D1  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD15;
+   FMC_D2  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD0;
+   FMC_D3  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD1;
+   FMC_D4  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE7;
+   FMC_D5  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE8;
+   FMC_D6  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE9;
+   FMC_D7  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE10;
+   FMC_D8  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE11;
+   FMC_D9  : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE12;
+   FMC_D10 : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE13;
+   FMC_D11 : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE14;
+   FMC_D12 : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PE15;
+   FMC_D13 : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD8;
+   FMC_D14 : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD9;
+   FMC_D15 : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD10;
+   FMC_NOE : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD4;
+   FMC_NWE : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD5;
+   FMC_NE1 : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PD7;
 
    type NT35510_Command is new A0B.Types.Unsigned_16;
 
@@ -71,85 +92,47 @@ package body LADO.Display is
    --------------------
 
    procedure Configure_GPIO is
-
-      subtype Low_Line is Integer range 0 .. 7;
-      subtype High_Line is Integer range 8 .. 15;
-
-      -----------------
-      -- Configure_H --
-      -----------------
-
-      procedure Configure_H
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : High_Line;
-         Alternative : AFRH_AFSEL_Element) is
-      begin
-         Peripheral.OSPEEDR.Arr (Line) := 2#11#;      --  Very high speed
-         Peripheral.OTYPER.OT.Arr (Line) := False;    --  Output push-pull
-         Peripheral.PUPDR.Arr (Line) := 2#00#;
-         --  No pullup, no pulldown
-         Peripheral.AFRH.Arr (Line) := Alternative;   --  Alternate function
-         Peripheral.MODER.Arr (Line) := 2#10#;        --  Alternate function
-      end Configure_H;
-
-      -----------------
-      -- Configure_L --
-      -----------------
-
-      procedure Configure_L
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : Low_Line;
-         Alternative : AFRH_AFSEL_Element) is
-      begin
-         Peripheral.OSPEEDR.Arr (Line) := 2#11#;      --  Very high speed
-         Peripheral.OTYPER.OT.Arr (Line) := False;    --  Output push-pull
-         Peripheral.PUPDR.Arr (Line) := 2#00#;
-         --  No pullup, no pulldown
-         Peripheral.AFRL.Arr (Line) := Alternative;   --  Alternate function
-         Peripheral.MODER.Arr (Line) := 2#10#;        --  Alternate function
-      end Configure_L;
-
    begin
-      --  PD0  -> FMC_D2
-      Configure_L (GPIOD_Periph, 0, 12);
-      --  PD1  -> FMC_D3
-      Configure_L (GPIOD_Periph, 1, 12);
-      --  PD4  -> FMC_NOE
-      Configure_L (GPIOD_Periph, 4, 12);
-      --  PD5  -> FMC_NWE
-      Configure_L (GPIOD_Periph, 5, 12);
-      --  PD7  -> FMC_NE1
-      Configure_L (GPIOD_Periph, 7, 12);
-      --  PD8  -> FMC_D13
-      Configure_H (GPIOD_Periph, 8, 12);
-      --  PD9  -> FMC_D14
-      Configure_H (GPIOD_Periph, 9, 12);
-      --  PD10 -> FMC_D15
-      Configure_H (GPIOD_Periph, 10, 12);
-      --  PD14 -> FMC_D0
-      Configure_H (GPIOD_Periph, 14, 12);
-      --  PD15 -> FMC_D1
-      Configure_H (GPIOD_Periph, 15, 12);
-      --  PE7  -> FMC_D4
-      Configure_L (GPIOE_Periph, 7, 12);
-      --  PE8  -> FMC_D5
-      Configure_H (GPIOE_Periph, 8, 12);
-      --  PE9  -> FMC_D6
-      Configure_H (GPIOE_Periph, 9, 12);
-      --  PE10 -> FMC_D7
-      Configure_H (GPIOE_Periph, 10, 12);
-      --  PE11 -> FMC_D8
-      Configure_H (GPIOE_Periph, 11, 12);
-      --  PE12 -> FMC_D9
-      Configure_H (GPIOE_Periph, 12, 12);
-      --  PE13 -> FMC_D10
-      Configure_H (GPIOE_Periph, 13, 12);
-      --  PE14 -> FMC_D11
-      Configure_H (GPIOE_Periph, 14, 12);
-      --  PE15 -> FMC_D12
-      Configure_H (GPIOE_Periph, 15, 12);
-      --  PF4  -> FMC_A4
-      Configure_L (GPIOF_Periph, 4, 12);
+      FMC_A4.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_A4, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D0.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D0, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D1.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D1, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D2.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D2, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D3.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D3, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D4.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D4, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D5.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D5, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D6.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D6, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D7.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D7, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D8.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D8, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D9.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D9, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D10.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D10, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D11.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D11, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D12.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D12, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D13.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D13, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D14.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D14, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_D15.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_D15, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_NE1.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_NE1, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_NOE.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_NOE, Speed => A0B.STM32H723.GPIO.Very_High);
+      FMC_NWE.Configure_Alternative_Function
+        (A0B.STM32H723.FMC_NWE, Speed => A0B.STM32H723.GPIO.Very_High);
    end Configure_GPIO;
 
    -------------------

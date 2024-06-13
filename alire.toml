@@ -16,12 +16,17 @@ project-files = ["gnat/lado.gpr"]
 [[depends-on]]
 a0b_armv7m_systick_clock_timer = "*"
 a0b_stm32h723 = "*"
+a0b_stm32h723_gpio = "*"
 light_fk723m1_zgt6 = "*"
 
 [[pins]]
 a0b_armv7m = { path='../a0b-armv7m' }
 a0b_base = { path='../a0b-base' }
 a0b_callbacks = { path='../a0b-callbacks' }
+a0b_exti = { path='../a0b-exti' }
+a0b_gpio = { path='../a0b-gpio' }
 a0b_stm32h723 = { path='../a0b-stm32h723' }
+a0b_stm32h723_gpio = { path='../a0b-stm32h723-gpio' }
+a0b_tasking = { path='../a0b-tasking' }
 a0b_time = { path='../a0b-time' }
 a0b_timer = { path='../a0b-timer' }

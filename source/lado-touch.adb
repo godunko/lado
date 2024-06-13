@@ -6,10 +6,17 @@
 
 pragma Ada_2022;
 
-with A0B.STM32H723.SVD.GPIO; use A0B.STM32H723.SVD.GPIO;
+with A0B.STM32H723.GPIO;
 with A0B.STM32H723.SVD.SPI;  use A0B.STM32H723.SVD.SPI;
 
 package body LADO.Touch is
+
+   MISO   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PG12;
+   MOSI   : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PA7;
+   SCK    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PG13;
+   NSS    : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PA0;
+
+   PENIRQ : A0B.STM32H723.GPIO.GPIO_Line renames A0B.STM32H723.GPIO.PA12;
 
    type Unsigned_8_Array is
      array (A0B.Types.Unsigned_32 range <>) of A0B.Types.Unsigned_8;
@@ -32,59 +39,19 @@ package body LADO.Touch is
    --------------------
 
    procedure Configure_GPIO is
-
-      subtype Low_Line is Integer range 0 .. 7;
-      subtype High_Line is Integer range 8 .. 15;
-
-      -----------------
-      -- Configure_H --
-      -----------------
-
-      procedure Configure_H
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : High_Line;
-         Alternative : AFRH_AFSEL_Element) is
-      begin
-         Peripheral.OSPEEDR.Arr (Line) := 2#00#;      --  Low high speed
-         Peripheral.OTYPER.OT.Arr (Line) := False;    --  Output push-pull
-         Peripheral.PUPDR.Arr (Line) := 2#01#;        --  Pullup
-         Peripheral.AFRH.Arr (Line) := Alternative;   --  Alternate function
-         Peripheral.MODER.Arr (Line) := 2#10#;        --  Alternate function
-      end Configure_H;
-
-      -----------------
-      -- Configure_L --
-      -----------------
-
-      procedure Configure_L
-        (Peripheral  : in out GPIO_Peripheral;
-         Line        : Low_Line;
-         Alternative : AFRH_AFSEL_Element) is
-      begin
-         Peripheral.OSPEEDR.Arr (Line) := 2#00#;      --  Low high speed
-         Peripheral.OTYPER.OT.Arr (Line) := False;    --  Output push-pull
-         Peripheral.PUPDR.Arr (Line) := 2#01#;        --  Pullup
-         Peripheral.AFRL.Arr (Line) := Alternative;   --  Alternate function
-         Peripheral.MODER.Arr (Line) := 2#10#;        --  Alternate function
-      end Configure_L;
-
    begin
-      --  PG12 -> SPI6_MISO
-      Configure_H (GPIOG_Periph, 12, 5);
-      --  PA7  -> SPI6_MOSI
-      Configure_L (GPIOA_Periph, 7, 8);
-      --  PG13 -> SPI6_SCK
-      Configure_H (GPIOG_Periph, 13, 5);
-      --  PA0  -> SPI6_NSS
-      Configure_L (GPIOC_Periph, 0, 5);
+      MISO.Configure_Alternative_Function
+        (A0B.STM32H723.SPI6_MISO, Pull => A0B.STM32H723.GPIO.Pull_Up);
+      MOSI.Configure_Alternative_Function
+        (A0B.STM32H723.SPI6_MOSI, Pull => A0B.STM32H723.GPIO.Pull_Up);
+      SCK.Configure_Alternative_Function
+        (A0B.STM32H723.SPI6_SCK, Pull => A0B.STM32H723.GPIO.Pull_Up);
+      NSS.Configure_Alternative_Function
+        (A0B.STM32H723.SPI6_NSS, Pull => A0B.STM32H723.GPIO.Pull_Up);
 
       --  PENIRQ/A12
 
-      --  GPIOA_Periph.OSPEEDR.Arr (12) := 2#00#;      --  Low high speed
-      --  GPIOA_Periph.OTYPER.OT.Arr (Line) := False;    --  Output push-pull
-      --  GPIOA_Periph.AFRH.Arr (Line) := Alternative;   --  Alternate function
-      GPIOA_Periph.MODER.Arr (12) := 2#00#;        --  Input mode
-      GPIOA_Periph.PUPDR.Arr (12) := 2#01#;        --  Pullup
+      PENIRQ.Configure_Input (A0B.STM32H723.GPIO.Pull_Up);
    end Configure_GPIO;
 
    -------------------
@@ -211,7 +178,7 @@ package body LADO.Touch is
       Z2         : A0B.Types.Unsigned_12;
 
    begin
-      State.Is_Touched := not GPIOA_Periph.IDR.ID.Arr (12);
+      State.Is_Touched := not PENIRQ.Get;
       State.X          := 0;
       State.Y          := 0;
 
