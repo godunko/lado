@@ -10,17 +10,16 @@ with System.Storage_Elements;
 
 with A0B.ARMv7M.Cache_Utilities;
 with A0B.Delays;
+with A0B.Tasking;
 with A0B.Time;
 with A0B.Types;
 
 with LADO.Acquisition;
+with LADO.Display;
 with LADO.Painter;
 with LADO.Touch;
 
 package body LADO.UI is
-
-   procedure PendSV_Handler is null
-     with Export, Convention => C, External_Name => "PendSV_Handler";
 
    procedure Draw_Line
      (Y     : A0B.Types.Integer_32;
@@ -30,6 +29,10 @@ package body LADO.UI is
    procedure Draw (First : A0B.Types.Unsigned_32);
 
    First : A0B.Types.Unsigned_32 := 0;
+
+   procedure Run;
+
+   UI_Control : aliased A0B.Tasking.Task_Control_Block;
 
    ----------
    -- Draw --
@@ -124,8 +127,13 @@ package body LADO.UI is
          end;
       end loop Acquisition;
 
-      First := A0B.Types.Unsigned_32'Max (@, 10);
-      First := @ - 10;
+      if First > LADO.Acquisition.Buffer'Last - 800 then
+         First := LADO.Acquisition.Buffer'Last - 800;
+
+      else
+         First := A0B.Types.Unsigned_32'Max (@, 10);
+         First := @ - 10;
+      end if;
    end Do_Acquisition;
 
    ----------------
@@ -136,6 +144,15 @@ package body LADO.UI is
    begin
       null;
    end Initialize;
+
+   -------------------
+   -- Register_Task --
+   -------------------
+
+   procedure Register_Task is
+   begin
+      A0B.Tasking.Register_Thread (UI_Control, Run'Access, 16#200#);
+   end Register_Task;
 
    ---------
    -- Run --
@@ -149,6 +166,8 @@ package body LADO.UI is
 
    procedure Run is
    begin
+      LADO.Display.Initialize;
+
       loop
          Draw (First);
 

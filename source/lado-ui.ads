@@ -10,6 +10,6 @@ is
 
    procedure Initialize;
 
-   procedure Run;
+   procedure Register_Task;
 
 end LADO.UI;

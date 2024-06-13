@@ -56,6 +56,43 @@ package body LADO.Display is
           Convention => C,
           Address    => System.Storage_Elements.To_Address (16#6000_0020#);
 
+   procedure Command_Write
+     (Command : NT35510_Command;
+      Data    : A0B.Types.Unsigned_16);
+
+   procedure Command (Command : NT35510_Command);
+
+   procedure Clear;
+
+   --------------
+   -- Activate --
+   --------------
+
+   procedure Activate is
+   begin
+      --  Reset_Low;
+      --  Delay_For (Microseconds (10));
+      --  Reset_High;
+
+      A0B.Delays.Delay_For (A0B.Time.Milliseconds (120));
+
+      Command (SLPOUT);
+      A0B.Delays.Delay_For (A0B.Time.Milliseconds (120));
+
+      Command_Write (MADCTL, 2#0110_0000#);
+      --  Column Address Order: reverted
+      --  Row/Column Exchange: exchanged
+
+      Command_Write (COLMOD, 2#0101_0101#);
+      --  Pixel Format for RGB Interface: 16-bit/pixel
+      --  Pixel Format for MCU Interface: 16-bit/pixel
+
+      Clear;
+      --  Cleaup display memory
+
+      Command (DISPON);
+   end Activate;
+
    -----------
    -- Clear --
    -----------
@@ -269,28 +306,6 @@ package body LADO.Display is
       Configure_FMC;
       Configure_GPIO;
       Configure_MPU;
-
-      --  Reset_Low;
-      --  Delay_For (Microseconds (10));
-      --  Reset_High;
-
-      A0B.Delays.Delay_For (A0B.Time.Milliseconds (120));
-
-      Command (SLPOUT);
-      A0B.Delays.Delay_For (A0B.Time.Milliseconds (120));
-
-      Command_Write (MADCTL, 2#0110_0000#);
-      --  Column Address Order: reverted
-      --  Row/Column Exchange: exchanged
-
-      Command_Write (COLMOD, 2#0101_0101#);
-      --  Pixel Format for RGB Interface: 16-bit/pixel
-      --  Pixel Format for MCU Interface: 16-bit/pixel
-
-      Clear;
-      --  Cleaup display memory
-
-      Command (DISPON);
    end Initialize;
 
 end LADO.Display;
